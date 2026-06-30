@@ -8,7 +8,7 @@ const STATUS_LABEL = {
   checking: 'Checking…',
 };
 
-export default function Header() {
+export default function Header({ view = 'analyzer', onViewChange }) {
   const [status, setStatus] = useState('checking');
 
   useEffect(() => {
@@ -17,9 +17,7 @@ export default function Header() {
         .then(r => r.json())
         .then(d => setStatus(d.status))
         .catch(() => setStatus('stopped'));
-
     poll();
-    // Poll every 6s so UI reflects state changes (starting → running, idle shutdown)
     const id = setInterval(poll, 6000);
     return () => clearInterval(id);
   }, []);
@@ -27,12 +25,28 @@ export default function Header() {
   return (
     <header className={styles.header}>
       <div className={styles.left}>
-        <span className={styles.logo}>⚡</span>
+        <span className={styles.logo}>&#9889;</span>
         <div>
           <h1 className={styles.title}>Cosmos3-Nano Reasoner</h1>
           <p className={styles.sub}>NVIDIA Visual AI · vLLM v0.21.0</p>
         </div>
       </div>
+
+      <nav className={styles.tabs}>
+        <button
+          className={`${styles.tab} ${view === 'analyzer' ? styles.activeTab : ''}`}
+          onClick={() => onViewChange?.('analyzer')}
+        >
+          Image Analyzer
+        </button>
+        <button
+          className={`${styles.tab} ${view === 'thermal' ? styles.activeTab : ''}`}
+          onClick={() => onViewChange?.('thermal')}
+        >
+          Thermal Viewer
+        </button>
+      </nav>
+
       <div className={styles.status}>
         <span className={`${styles.dot} ${styles[status]}`} />
         <span className={styles.statusLabel}>{STATUS_LABEL[status] ?? status}</span>
