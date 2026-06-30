@@ -1,0 +1,125 @@
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.main {
+  flex: 1;
+  padding: 28px 24px;
+  max-width: 780px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.col { display: flex; flex-direction: column; }
+
+/* Shared card style (prompt section) */
+.card {
+  background: #13131a;
+  border: 1px solid #22222d;
+  border-radius: 14px;
+  padding: 24px;
+  margin-bottom: 16px;
+}
+
+.cardTitle {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #555;
+  margin-bottom: 14px;
+}
+
+.textarea {
+  width: 100%;
+  background: #0d0d12;
+  border: 1px solid #2a2a38;
+  border-radius: 8px;
+  color: #e0e0e0;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.6;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.15s;
+  margin-bottom: 14px;
+}
+.textarea:focus { border-color: #76b900; }
+
+.analyzeBtn {
+  width: 100%;
+  padding: 13px;
+  background: #76b900;
+  color: #0b0b0e;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 0.15s, transform 0.1s;
+  letter-spacing: 0.2px;
+}
+.analyzeBtn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.analyzeBtn:active:not(:disabled) { transform: translateY(0); }
+.analyzeBtn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.btnSpinner {
+  display: inline-block;
+  width: 15px; height: 15px;
+  border: 2px solid #0b0b0e44;
+  border-top-color: #0b0b0e;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Model control bar ── */
+.controlBar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #13131a;
+  border: 1px solid #22222d;
+  border-radius: 12px;
+  padding: 12px 18px;
+  margin-bottom: 16px;
+}
+
+.stateChip {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  padding: 4px 10px;
+  border-radius: 20px;
+}
+.stateChip.stopped  { color: #666; background: #1a1a22; }
+.stateChip.starting { color: #f5a623; background: #2a2010; }
+.stateChip.running  { color: #76b900; background: #1a2010; }
+
+.ctrlBtn {
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #76b900;
+  color: #0b0b0e;
+  transition: opacity 0.15s;
+}
+.ctrlBtn:disabled { opacity: 0.4; cursor: not-allowed; }
+.ctrlBtn:hover:not(:disabled) { opacity: 0.85; }
+.ctrlBtn.stopBtn { background: #333; color: #aaa; }
+
+.idleNote {
+  margin-left: auto;
+  font-size: 11px;
+  color: #444;
+}
