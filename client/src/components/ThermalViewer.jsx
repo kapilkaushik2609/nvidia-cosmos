@@ -31,6 +31,8 @@ export default function ThermalViewer() {
   const [isError,    setIsError]    = useState(false);
   const [usage,      setUsage]      = useState(null);
   const [prompt,     setPrompt]     = useState(DEFAULT_PROMPT);
+  const [uploadedImage,     setUploadedImage]     = useState(null);
+  const [uploadedImageName, setUploadedImageName] = useState('');
 
   /* ── Three.js setup ──────────────────────────────────────────────── */
   useEffect(() => {
@@ -165,6 +167,12 @@ export default function ThermalViewer() {
     e.target.value = '';
   }, []);
 
+  const handleAnalyzeImageUpload = useCallback(e => {
+    const file = e.target.files[0];
+    if (file) { setUploadedImage(file); setUploadedImageName(file.name); }
+    e.target.value = '';
+  }, []);
+
   /* ── Cosmos analyze ──────────────────────────────────────────────── */
   const analyze = async () => {
     setAnalyzing(true);
@@ -177,11 +185,14 @@ export default function ThermalViewer() {
       const h = await fetch('/api/health').then(r => r.json()).catch(() => ({}));
       if (h.status !== 'running') setStarting(true);
 
-      const res  = await fetch('/api/analyze-thermal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ thermal_file: activeMap, prompt }),
-      });
+      const fd = new FormData();
+      fd.append('prompt', prompt);
+      if (uploadedImage) {
+        fd.append('image', uploadedImage);
+      } else {
+        fd.append('thermal_file', activeMap);
+      }
+      const res  = await fetch('/api/analyze-thermal', { method: 'POST', body: fd });
       const data = await res.json();
       setStarting(false);
       setIsError(!!data.error);
@@ -313,6 +324,22 @@ export default function ThermalViewer() {
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
           />
+          {/* Upload any image for analysis */}
+          <div className={styles.uploadRow}>
+            <label className={styles.uploadImgBtn}>
+              {uploadedImageName
+                ? <>✔ {uploadedImageName}</>
+                : <>📎 Upload image to analyze</>}
+              <input type="file" accept="image/*" onChange={handleAnalyzeImageUpload} hidden />
+            </label>
+            {uploadedImageName && (
+              <button
+                className={styles.clearUpload}
+                onClick={() => { setUploadedImage(null); setUploadedImageName(''); }}
+              >×</button>
+            )}
+          </div>
+
           <button className={styles.analyzeBtn} onClick={analyze} disabled={analyzing}>
             {analyzing
               ? <><span className={styles.btnSpin} /> Analyzing…</>

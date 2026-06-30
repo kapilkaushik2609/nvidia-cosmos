@@ -187,31 +187,38 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
 });
 
 // Thermal image analysis — reads from ALLOC_BASE, sends directly to vLLM
-app.post("/api/analyze-thermal", async (req, res) => {
+app.post("/api/analyze-thermal", upload.single("image"), async (req, res) => {
   try {
     await ensureVLLM();
-    const { thermal_file = "thermal_map_composite.png", prompt } = req.body;
-    const filePath = path.join(ALLOC_BASE, "thermal", thermal_file);
 
-    if (!fs.existsSync(filePath)) {
-      return res.status(404).json({ error: `File not found: ${thermal_file}` });
+    let b64, mime = "image/png";
+
+    if (req.file) {
+      // Uploaded file from client
+      b64  = req.file.buffer.toString("base64");
+      mime = req.file.mimetype || "image/jpeg";
+    } else {
+      // Fall back to reading from allocation thermal folder
+      const { thermal_file = "thermal_map_composite.png" } = req.body;
+      const filePath = path.join(ALLOC_BASE, "thermal", thermal_file);
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({
+          error: `File not found: ${thermal_file}. Use the upload button to send an image directly.`
+        });
+      }
+      b64 = fs.readFileSync(filePath).toString("base64");
     }
 
-    const b64 = fs.readFileSync(filePath).toString("base64");
-    const analysisPrompt = prompt ||
+    const analysisPrompt = req.body.prompt ||
       "Analyze this thermal map of a datacenter. Identify hot spots, cold zones, " +
-      "hot aisle vs cold aisle temperature patterns, and ASHRAE compliance concerns. " +
-      "Be specific about rack locations and severity.";
+      "hot aisle vs cold aisle temperature patterns, and ASHRAE compliance concerns.";
 
     const payload = {
       model: MODEL,
-      messages: [{
-        role: "user",
-        content: [
-          { type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } },
-          { type: "text", text: analysisPrompt },
-        ],
-      }],
+      messages: [{ role: "user", content: [
+        { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } },
+        { type: "text", text: analysisPrompt },
+      ]}],
       max_tokens: 1024,
     };
 
@@ -247,4 +254,3 @@ app.listen(PORT, () => {
 
 process.on("SIGINT",  () => { stopVLLM(); process.exit(0); });
 process.on("SIGTERM", () => { stopVLLM(); process.exit(0); });
-                                                                                                                        
