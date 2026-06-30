@@ -1,18 +1,18 @@
-const express   = require("express");
-const multer    = require("multer");
-const fetch     = require("node-fetch");
-const cors      = require("cors");
-const path      = require("path");
+const express = require("express");
+const multer = require("multer");
+const fetch = require("node-fetch");
+const cors = require("cors");
+const path = require("path");
 const { spawn } = require("child_process");
 
-const app    = express();
+const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
-const VLLM_URL         = process.env.VLLM_URL          || "http://127.0.0.1:8001";
-const MODEL            = process.env.MODEL             || "nvidia/Cosmos3-Nano";
-const PORT             = process.env.PORT              || 3000;
-const IDLE_TIMEOUT_MS  = (process.env.IDLE_TIMEOUT_MIN || 10) * 60 * 1000;
-const STARTUP_MAX_MS   = 5 * 60 * 1000;   // give up if model not ready in 5 min
+const VLLM_URL = process.env.VLLM_URL || "http://127.0.0.1:8001";
+const MODEL = process.env.MODEL || "nvidia/Cosmos3-Nano";
+const PORT = process.env.PORT || 7086;
+const IDLE_TIMEOUT_MS = (process.env.IDLE_TIMEOUT_MIN || 10) * 60 * 1000;
+const STARTUP_MAX_MS = 5 * 60 * 1000; // give up if model not ready in 5 min
 const POLL_INTERVAL_MS = 5_000;
 
 app.use(cors());
@@ -21,31 +21,40 @@ app.use(express.static(path.join(__dirname, "client", "dist")));
 
 /* ─── vLLM On-Demand Process Manager ────────────────────────────────── */
 
-let vllmProc     = null;
-let vllmState    = "stopped";   // "stopped" | "starting" | "running"
-let idleTimer    = null;
+let vllmProc = null;
+let vllmState = "stopped"; // "stopped" | "starting" | "running"
+let idleTimer = null;
 let startPromise = null;
 
 // Direct path inside the virtualenv — no shell activation needed
-const VLLM_BIN  = "/home/block2/cosmos-reasoner/bin/vllm";
+const VLLM_BIN = "/home/block2/cosmos-reasoner/bin/vllm";
 const VLLM_ARGS = [
-  "serve", "nvidia/Cosmos3-Nano",
-  "--hf-overrides", '{"architectures":["Cosmos3ReasonerForConditionalGeneration"]}',
-  "--tensor-parallel-size", "2",
-  "--mm-encoder-tp-mode", "data",
+  "serve",
+  "nvidia/Cosmos3-Nano",
+  "--hf-overrides",
+  '{"architectures":["Cosmos3ReasonerForConditionalGeneration"]}',
+  "--tensor-parallel-size",
+  "2",
+  "--mm-encoder-tp-mode",
+  "data",
   "--async-scheduling",
-  "--allowed-local-media-path", "/",
-  "--media-io-kwargs", '{"video":{"num_frames":-1}}',
-  "--gpu-memory-utilization", "0.92",
-  "--max-model-len", "8192",
-  "--port", "8001",
+  "--allowed-local-media-path",
+  "/",
+  "--media-io-kwargs",
+  '{"video":{"num_frames":-1}}',
+  "--gpu-memory-utilization",
+  "0.92",
+  "--max-model-len",
+  "8192",
+  "--port",
+  "8001",
 ];
 const VLLM_ENV = {
   ...process.env,
-  CUDA_DEVICE_ORDER:                        "PCI_BUS_ID",
-  CUDA_VISIBLE_DEVICES:                     "0,1",
-  HF_HUB_OFFLINE:                           "1",
-  VLLM_USE_FLASHINFER_SAMPLER:              "0",
+  CUDA_DEVICE_ORDER: "PCI_BUS_ID",
+  CUDA_VISIBLE_DEVICES: "0,1",
+  HF_HUB_OFFLINE: "1",
+  VLLM_USE_FLASHINFER_SAMPLER: "0",
   VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: "0",
 };
 
@@ -59,10 +68,14 @@ function resetIdle() {
 
 function stopVLLM() {
   clearTimeout(idleTimer);
-  idleTimer    = null;
+  idleTimer = null;
   startPromise = null;
   if (vllmProc) {
-    try { process.kill(-vllmProc.pid, "SIGKILL"); } catch { vllmProc.kill("SIGKILL"); }
+    try {
+      process.kill(-vllmProc.pid, "SIGKILL");
+    } catch {
+      vllmProc.kill("SIGKILL");
+    }
     vllmProc = null;
   }
   vllmState = "stopped";
@@ -76,7 +89,7 @@ async function pollReady() {
       const r = await fetch(`${VLLM_URL}/health`, { timeout: 3000 });
       if (r.ok) return true;
     } catch {}
-    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
   return false;
 }
@@ -86,16 +99,22 @@ async function _doStart() {
   console.log("[vLLM] Starting on-demand…");
 
   vllmProc = spawn(VLLM_BIN, VLLM_ARGS, { env: VLLM_ENV, detached: true });
-  vllmProc.stdout.on("data", d => process.stdout.write(`[vLLM] ${d}`));
-  vllmProc.stderr.on("data", d => process.stderr.write(`[vLLM] ${d}`));
-  vllmProc.on("exit", code => {
+  vllmProc.stdout.on("data", (d) => process.stdout.write(`[vLLM] ${d}`));
+  vllmProc.stderr.on("data", (d) => process.stderr.write(`[vLLM] ${d}`));
+  vllmProc.on("exit", (code) => {
     console.log(`[vLLM] Exited (${code})`);
-    vllmProc = null; vllmState = "stopped"; startPromise = null;
-    clearTimeout(idleTimer); idleTimer = null;
+    vllmProc = null;
+    vllmState = "stopped";
+    startPromise = null;
+    clearTimeout(idleTimer);
+    idleTimer = null;
   });
 
   const ready = await pollReady();
-  if (!ready) { stopVLLM(); throw new Error("vLLM failed to start within 5 minutes"); }
+  if (!ready) {
+    stopVLLM();
+    throw new Error("vLLM failed to start within 5 minutes");
+  }
 
   vllmState = "running";
   resetIdle();
@@ -103,9 +122,15 @@ async function _doStart() {
 }
 
 function ensureVLLM() {
-  if (vllmState === "running") { resetIdle(); return Promise.resolve(); }
+  if (vllmState === "running") {
+    resetIdle();
+    return Promise.resolve();
+  }
   if (!startPromise) {
-    startPromise = _doStart().catch(e => { startPromise = null; throw e; });
+    startPromise = _doStart().catch((e) => {
+      startPromise = null;
+      throw e;
+    });
   }
   return startPromise;
 }
@@ -116,15 +141,26 @@ function ensureVLLM() {
 app.get("/api/health", async (_req, res) => {
   let vllmOk = false;
   if (vllmState === "running") {
-    try { const r = await fetch(`${VLLM_URL}/health`, { timeout: 3000 }); vllmOk = r.ok; } catch {}
+    try {
+      const r = await fetch(`${VLLM_URL}/health`, { timeout: 3000 });
+      vllmOk = r.ok;
+    } catch {}
   }
-  res.json({ status: vllmState, vllm: vllmOk ? "ok" : vllmState, url: VLLM_URL });
+  res.json({
+    status: vllmState,
+    vllm: vllmOk ? "ok" : vllmState,
+    url: VLLM_URL,
+  });
 });
 
 // Pre-warm the model manually
 app.post("/api/start", async (_req, res) => {
-  try { await ensureVLLM(); res.json({ status: "running" }); }
-  catch (e) { res.status(500).json({ error: e.message }); }
+  try {
+    await ensureVLLM();
+    res.json({ status: "running" });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Stop the model manually
@@ -138,21 +174,35 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
   try {
     await ensureVLLM();
 
-    const prompt = req.body.prompt?.trim() || "Describe what you see in this image.";
+    const prompt =
+      req.body.prompt?.trim() || "Describe what you see in this image.";
     let imageContent;
     if (req.file) {
-      const b64  = req.file.buffer.toString("base64");
+      const b64 = req.file.buffer.toString("base64");
       const mime = req.file.mimetype || "image/jpeg";
-      imageContent = { type: "image_url", image_url: { url: `data:${mime};base64,${b64}` } };
+      imageContent = {
+        type: "image_url",
+        image_url: { url: `data:${mime};base64,${b64}` },
+      };
     } else if (req.body.image_url) {
-      imageContent = { type: "image_url", image_url: { url: req.body.image_url } };
+      imageContent = {
+        type: "image_url",
+        image_url: { url: req.body.image_url },
+      };
     } else {
-      return res.status(400).json({ error: "Provide an image file or image_url." });
+      return res
+        .status(400)
+        .json({ error: "Provide an image file or image_url." });
     }
 
     const payload = {
       model: MODEL,
-      messages: [{ role: "user", content: [imageContent, { type: "text", text: prompt }] }],
+      messages: [
+        {
+          role: "user",
+          content: [imageContent, { type: "text", text: prompt }],
+        },
+      ],
       max_tokens: 1024,
     };
 
@@ -163,10 +213,14 @@ app.post("/api/analyze", upload.single("image"), async (req, res) => {
     });
 
     const data = await upstream.json();
-    if (!upstream.ok) return res.status(upstream.status).json({ error: JSON.stringify(data) });
+    if (!upstream.ok)
+      return res.status(upstream.status).json({ error: JSON.stringify(data) });
 
     resetIdle();
-    res.json({ result: data.choices?.[0]?.message?.content ?? "", usage: data.usage ?? {} });
+    res.json({
+      result: data.choices?.[0]?.message?.content ?? "",
+      usage: data.usage ?? {},
+    });
   } catch (err) {
     console.error("[analyze]", err.message);
     res.status(500).json({ error: err.message });
@@ -180,8 +234,16 @@ app.get("*", (_req, res) => {
 app.listen(PORT, () => {
   console.log(`\n  Backend  → http://localhost:${PORT}`);
   console.log(`  vLLM     → ${VLLM_URL}`);
-  console.log(`  Mode     → on-demand (idle timeout: ${IDLE_TIMEOUT_MS / 60000} min)\n`);
+  console.log(
+    `  Mode     → on-demand (idle timeout: ${IDLE_TIMEOUT_MS / 60000} min)\n`,
+  );
 });
 
-process.on("SIGINT",  () => { stopVLLM(); process.exit(0); });
-process.on("SIGTERM", () => { stopVLLM(); process.exit(0); });
+process.on("SIGINT", () => {
+  stopVLLM();
+  process.exit(0);
+});
+process.on("SIGTERM", () => {
+  stopVLLM();
+  process.exit(0);
+});
