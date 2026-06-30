@@ -61,7 +61,10 @@ function stopVLLM() {
   clearTimeout(idleTimer);
   idleTimer    = null;
   startPromise = null;
-  if (vllmProc) { vllmProc.kill("SIGKILL"); vllmProc = null; }
+  if (vllmProc) {
+    try { process.kill(-vllmProc.pid, "SIGKILL"); } catch { vllmProc.kill("SIGKILL"); }
+    vllmProc = null;
+  }
   vllmState = "stopped";
   console.log("[vLLM] Stopped");
 }
@@ -82,7 +85,7 @@ async function _doStart() {
   vllmState = "starting";
   console.log("[vLLM] Starting on-demand…");
 
-  vllmProc = spawn(VLLM_BIN, VLLM_ARGS, { env: VLLM_ENV });
+  vllmProc = spawn(VLLM_BIN, VLLM_ARGS, { env: VLLM_ENV, detached: true });
   vllmProc.stdout.on("data", d => process.stdout.write(`[vLLM] ${d}`));
   vllmProc.stderr.on("data", d => process.stderr.write(`[vLLM] ${d}`));
   vllmProc.on("exit", code => {
