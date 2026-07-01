@@ -307,6 +307,73 @@ app.post("/api/analyze-thermal", upload.single("image"), async (req, res) => {
   }
 });
 
+// Structured thermal prediction — Cosmos returns per-row risk + hotspot for map overlay
+app.post("/api/predict-thermal", async (req, res) => {
+  try {
+    await ensureVLLM();
+    const { totalKW, globalLoad, coolingOk, rowStats, topRisks } = req.body;
+
+    const thermalImg = path.join(ALLOC_BASE, "thermal", "thermal_map_composite.png");
+    let imageContent = null;
+    if (fs.existsSync(thermalImg)) {
+      const b64 = fs.readFileSync(thermalImg).toString("base64");
+      imageContent = { type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } };
+    }
+
+    const prompt =
+`You are a datacenter thermal AI. Analyze the DFW datacenter (52 racks, 3 rows, 375 kW capacity).
+
+CURRENT LOAD STATE:
+- IT Load: ${Number(totalKW).toFixed(0)} kW / 375 kW (${(totalKW/375*100).toFixed(0)}%)
+- Global rack utilisation: ${Math.round(globalLoad*100)}%
+- Cooling: ${coolingOk ? "normal N+1" : "FAULT — 50% capacity"}
+- Row 1: avg ${rowStats?.[0]?.avgTemp?.toFixed(1)}°C, ${rowStats?.[0]?.violations}/${rowStats?.[0]?.count} racks exceed 27°C
+- Row 2: avg ${rowStats?.[1]?.avgTemp?.toFixed(1)}°C, ${rowStats?.[1]?.violations}/${rowStats?.[1]?.count} racks exceed 27°C
+- Row 3: avg ${rowStats?.[2]?.avgTemp?.toFixed(1)}°C, ${rowStats?.[2]?.violations}/${rowStats?.[2]?.count} racks exceed 27°C
+- Hottest racks: ${(topRisks||[]).slice(0,3).map(r=>`${r.rack_id}(${Number(r.temp_c).toFixed(1)}°C)`).join(", ")}
+${imageContent ? "\nThe image shows the actual thermal baseline of this datacenter." : ""}
+
+Respond ONLY in this exact format — no other text, no explanation outside the fields:
+ROW_1_RISK: SAFE|WARNING|CRITICAL
+ROW_2_RISK: SAFE|WARNING|CRITICAL
+ROW_3_RISK: SAFE|WARNING|CRITICAL
+PREDICTED_MAX_TEMP: XX.X
+HOTSPOT_ZONE: [max 12 words describing the highest risk rack zone]
+URGENT_ACTION: [max 12 words — most critical action ops team should take now]`;
+
+    const content = imageContent
+      ? [imageContent, { type: "text", text: prompt }]
+      : [{ type: "text", text: prompt }];
+
+    const payload = { model: MODEL, messages: [{ role: "user", content }], max_tokens: 200 };
+    const upstream = await fetch(`${VLLM_URL}/v1/chat/completions`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    });
+    const data = await upstream.json();
+    if (!upstream.ok) return res.status(upstream.status).json({ error: JSON.stringify(data) });
+
+    resetIdle();
+    const text = data.choices?.[0]?.message?.content ?? "";
+
+    // Parse structured response
+    const get = (key) => text.match(new RegExp(`${key}:\\s*(.+)`))?.[1]?.trim() ?? null;
+    const prediction = {
+      row1: get("ROW_1_RISK") ?? "UNKNOWN",
+      row2: get("ROW_2_RISK") ?? "UNKNOWN",
+      row3: get("ROW_3_RISK") ?? "UNKNOWN",
+      maxTemp: get("PREDICTED_MAX_TEMP") ?? null,
+      hotspot: get("HOTSPOT_ZONE") ?? null,
+      action:  get("URGENT_ACTION") ?? null,
+      raw: text,
+    };
+
+    res.json({ prediction, usage: data.usage ?? {} });
+  } catch (err) {
+    console.error("[predict-thermal]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Simulation AI analysis — sends real thermal image + scenario state to Cosmos
 app.post("/api/analyze-simulation", async (req, res) => {
   try {

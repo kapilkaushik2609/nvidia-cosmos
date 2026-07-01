@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import styles from './SimulationPanel.module.css';
 
 const RACK_LAYOUT = [
@@ -34,6 +34,7 @@ const RACK_LAYOUT = [
 const IDLE_KW=4.0,PEAK_KW=18.0,AMBIENT_C=18.0,TEMP_PER_KW=0.969,DESIGN_KW=375;
 const ROW_FACTORS={1:1.000,2:1.002,3:1.004};
 const ASHRAE_REC=27.0,ASHRAE_ALLOW=32.0;
+const RISK_COLOR={SAFE:'#76b900',WARNING:'#f5a623',CRITICAL:'#ff2200',UNKNOWN:'#555'};
 
 const SCENARIOS=[
   {label:'Current',      globalLoad:0.49,coolingOk:true, desc:'Baseline — 565 kW mean from sensor data'},
@@ -76,24 +77,63 @@ function simulate(rowOverrides,globalLoad,coolingOk){
 const SVG_W=560,SVG_H=310,SX=SVG_W/70,SY=SVG_H/40;
 const RW=2*SX-3,RH=4*SY-3;
 
-function FloorPlan({racks,hovered,onHover}){
+function FloorPlan({racks,hovered,onHover,cosmosRisk}){
+  const rowRisk=cosmosRisk?{1:cosmosRisk.row1,2:cosmosRisk.row2,3:cosmosRisk.row3}:{};
   return(
     <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className={styles.floorSvg} preserveAspectRatio="xMidYMid meet">
+      <defs>
+        <filter id="glow-warn"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glow-crit"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      </defs>
       <rect x={0} y={0} width={SVG_W} height={SVG_H} fill="#07070f" rx={6}/>
       {[10,20,30,40,50,60].map(x=><line key={`gx${x}`} x1={x*SX} y1={0} x2={x*SX} y2={SVG_H} stroke="#141422" strokeWidth={1}/>)}
       {[10,20,30].map(y=><line key={`gy${y}`} x1={0} y1={y*SY} x2={SVG_W} y2={y*SY} stroke="#141422" strokeWidth={1}/>)}
+
+      {/* Cosmos risk row bands */}
+      {cosmosRisk && [1,2,3].map(row=>{
+        const risk=rowRisk[row];
+        if(!risk||risk==='SAFE'||risk==='UNKNOWN') return null;
+        const rowR=racks.find(r=>r.row===row);
+        if(!rowR) return null;
+        const py=rowR.position_ft.y*SY-1;
+        const col=risk==='CRITICAL'?'#ff220022':'#f5a62318';
+        const stroke=risk==='CRITICAL'?'#ff220066':'#f5a62344';
+        return(
+          <rect key={`band-${row}`} x={16*SX} y={py} width={36*SX} height={RH+2}
+            fill={col} stroke={stroke} strokeWidth={1} rx={3}
+            className={risk==='CRITICAL'?styles.criticalBand:styles.warningBand}/>
+        );
+      })}
+
+      {/* Racks */}
       {racks.map(r=>{
         const px=r.position_ft.x*SX,py=r.position_ft.y*SY;
         const col=tempColor(r.temp_c),isHov=hovered===r.rack_id;
+        const risk=rowRisk[r.row];
         const sc=isHov?'#fff':(!r.ashrae_allow?'#ff2200':!r.ashrae_rec?'#ff8800':'#000');
+        const filter=risk==='CRITICAL'?'url(#glow-crit)':risk==='WARNING'?'url(#glow-warn)':undefined;
         return(
           <g key={r.rack_id} style={{cursor:'pointer'}} onMouseEnter={()=>onHover(r.rack_id)} onMouseLeave={()=>onHover(null)}>
-            <rect x={px} y={py} width={RW} height={RH} fill={col} stroke={sc} strokeWidth={isHov?2:0.5} rx={1} opacity={0.92}/>
+            <rect x={px} y={py} width={RW} height={RH} fill={col} stroke={sc} strokeWidth={isHov?2:0.5} rx={1} opacity={0.92} filter={filter}/>
             {isHov&&<><rect x={px-2} y={py-18} width={44} height={15} fill="#000a" rx={3}/><text x={px+RW/2} y={py-7} textAnchor="middle" fontSize={8} fill="#fff" fontWeight="bold">{r.rack_id} {r.temp_c.toFixed(1)}°C</text></>}
           </g>
         );
       })}
-      {[1,2,3].map(row=>{const r=racks.find(r=>r.row===row);return r?<text key={row} x={r.position_ft.x*SX-14} y={r.position_ft.y*SY+RH/2+3} fontSize={8} fill="#555" fontFamily="monospace" textAnchor="end">R{row}</text>:null;})}
+
+      {/* Row labels + Cosmos risk badges */}
+      {[1,2,3].map(row=>{
+        const r=racks.find(r=>r.row===row);
+        const risk=rowRisk[row];
+        if(!r) return null;
+        return(
+          <g key={row}>
+            <text x={r.position_ft.x*SX-14} y={r.position_ft.y*SY+RH/2+3} fontSize={8} fill="#555" fontFamily="monospace" textAnchor="end">R{row}</text>
+            {risk&&risk!=='UNKNOWN'&&(
+              <text x={r.position_ft.x*SX-14} y={r.position_ft.y*SY+RH/2+13} fontSize={6} fill={RISK_COLOR[risk]} fontFamily="monospace" textAnchor="end" fontWeight="bold">{risk}</text>
+            )}
+          </g>
+        );
+      })}
     </svg>
   );
 }
@@ -104,40 +144,72 @@ export default function SimulationPanel(){
   const[coolingOk,setCoolingOk]=useState(true);
   const[hovered,setHovered]=useState(null);
   const[scenario,setScenario]=useState(0);
+
+  // Cosmos full analysis
   const[cosmosResult,setCosmosResult]=useState('');
   const[cosmosLoading,setCosmosLoading]=useState(false);
   const[cosmosError,setCosmosError]=useState('');
   const[usedImage,setUsedImage]=useState(false);
+
+  // Cosmos live prediction mode
+  const[cosmosMode,setCosmosMode]=useState(false);
+  const[cosmosRisk,setCosmosRisk]=useState(null);   // {row1,row2,row3,maxTemp,hotspot,action}
+  const[cosmosThinking,setCosmosThinking]=useState(false);
+  const abortRef=useRef(null);
 
   const applyScenario=idx=>{setScenario(idx);setGlobalLoad(SCENARIOS[idx].globalLoad);setRowOverrides({});setCoolingOk(SCENARIOS[idx].coolingOk);};
   const getRowLoad=row=>rowOverrides[row]??globalLoad;
   const sim=simulate(rowOverrides,globalLoad,coolingOk);
   const hoveredRack=sim.racks.find(r=>r.rack_id===hovered);
 
+  // Auto-predict: 1.5s after slider stops, if Cosmos mode is on
+  useEffect(()=>{
+    if(!cosmosMode) return;
+    const rowStats=[1,2,3].map(row=>{
+      const rr=sim.racks.filter(r=>r.row===row);
+      return{row,count:rr.length,avgTemp:rr.reduce((s,r)=>s+r.temp_c,0)/rr.length,violations:rr.filter(r=>!r.ashrae_rec).length};
+    });
+    const topRisks=[...sim.racks].sort((a,b)=>b.temp_c-a.temp_c).slice(0,5);
+
+    const timer=setTimeout(async()=>{
+      abortRef.current?.abort();
+      const ctrl=new AbortController();
+      abortRef.current=ctrl;
+      setCosmosThinking(true);
+      try{
+        const res=await fetch('/api/predict-thermal',{
+          method:'POST',signal:ctrl.signal,
+          headers:{'Content-Type':'application/json'},
+          body:JSON.stringify({totalKW:sim.totalKW,globalLoad,coolingOk,rowStats,topRisks}),
+        });
+        const data=await res.json();
+        if(data.prediction) setCosmosRisk(data.prediction);
+      }catch(e){
+        if(e.name!=='AbortError') console.warn('predict-thermal:',e.message);
+      }
+      setCosmosThinking(false);
+    },1500);
+    return()=>{clearTimeout(timer);};
+  },[globalLoad,rowOverrides,coolingOk,cosmosMode]);
+
+  // Clear risk map when mode turned off
+  useEffect(()=>{ if(!cosmosMode){setCosmosRisk(null);abortRef.current?.abort();} },[cosmosMode]);
+
   const askCosmos=async()=>{
     setCosmosLoading(true);setCosmosResult('');setCosmosError('');setUsedImage(false);
     try{
-      // Build row stats
       const rowStats=[1,2,3].map(row=>{
         const rr=sim.racks.filter(r=>r.row===row);
         return{row,count:rr.length,avgTemp:rr.reduce((s,r)=>s+r.temp_c,0)/rr.length,violations:rr.filter(r=>!r.ashrae_rec).length};
       });
-      // Top at-risk racks sorted by temp descending
       const topRisks=[...sim.racks].sort((a,b)=>b.temp_c-a.temp_c).slice(0,8);
       const scenarioLabel=scenario>=0?SCENARIOS[scenario]?.label:'Custom';
-
       const res=await fetch('/api/analyze-simulation',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({
-          scenario:scenarioLabel,
-          totalKW:sim.totalKW,facilKW:sim.facilKW,pue:sim.pue,
-          maxTemp:sim.maxTemp,violations:sim.violations,critical:sim.critical,
-          globalLoad,coolingOk,rowStats,topRisks,
-        }),
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({scenario:scenarioLabel,totalKW:sim.totalKW,facilKW:sim.facilKW,pue:sim.pue,maxTemp:sim.maxTemp,violations:sim.violations,critical:sim.critical,globalLoad,coolingOk,rowStats,topRisks}),
       });
       const data=await res.json();
-      if(!res.ok)throw new Error(data.error||`HTTP ${res.status}`);
+      if(!res.ok) throw new Error(data.error||`HTTP ${res.status}`);
       setCosmosResult(data.result);
       setUsedImage(!!data.used_image);
     }catch(e){setCosmosError(e.message);}
@@ -149,13 +221,35 @@ export default function SimulationPanel(){
       <div className={styles.left}>
         <div className={styles.floorHeader}>
           <span className={styles.floorTitle}>Datacenter Floorplan — 70 × 40 ft · 52 Racks</span>
-          {hoveredRack&&<span className={styles.hoverChip}>{hoveredRack.rack_id} · {hoveredRack.temp_c.toFixed(1)}°C · {hoveredRack.power_kw.toFixed(1)} kW {!hoveredRack.ashrae_allow?'⛔ ABOVE ALLOWABLE':!hoveredRack.ashrae_rec?'⚠ above rec':'✓ OK'}</span>}
+          {cosmosThinking&&<span className={styles.thinkingChip}>🔮 Cosmos predicting…</span>}
+          {hoveredRack&&!cosmosThinking&&<span className={styles.hoverChip}>{hoveredRack.rack_id} · {hoveredRack.temp_c.toFixed(1)}°C · {hoveredRack.power_kw.toFixed(1)} kW {!hoveredRack.ashrae_allow?'⛔ ABOVE ALLOWABLE':!hoveredRack.ashrae_rec?'⚠ above rec':'✓ OK'}</span>}
         </div>
-        <FloorPlan racks={sim.racks} hovered={hovered} onHover={setHovered}/>
+
+        <FloorPlan racks={sim.racks} hovered={hovered} onHover={setHovered} cosmosRisk={cosmosMode?cosmosRisk:null}/>
+
         <div className={styles.legend}>
           <div className={styles.legendBar} style={{background:`linear-gradient(to right,${[18,22,25,27,29,31,33].map(t=>tempColor(t)).join(',')})`}}/>
           <div className={styles.legendLabels}><span>18°C</span><span>22°C</span><span>27° REC</span><span>32° MAX</span></div>
         </div>
+
+        {/* Cosmos risk summary bar */}
+        {cosmosMode&&cosmosRisk&&(
+          <div className={styles.riskBar}>
+            {[1,2,3].map(row=>{
+              const risk=cosmosRisk[`row${row}`]??'UNKNOWN';
+              return(<div key={row} className={styles.riskCell} style={{borderColor:RISK_COLOR[risk]}}>
+                <span style={{color:RISK_COLOR[risk],fontWeight:700}}>Row {row}</span>
+                <span style={{color:RISK_COLOR[risk],fontSize:'0.7rem'}}>{risk}</span>
+              </div>);
+            })}
+            {cosmosRisk.maxTemp&&<div className={styles.riskCell} style={{borderColor:'#555'}}>
+              <span style={{color:'#aaa',fontWeight:700}}>AI Peak</span>
+              <span style={{color:'#aaa',fontSize:'0.7rem'}}>{cosmosRisk.maxTemp}°C</span>
+            </div>}
+            {cosmosRisk.action&&<div className={styles.riskAction}>⚡ {cosmosRisk.action}</div>}
+          </div>
+        )}
+
         <div className={styles.metricsRow}>
           <div className={`${styles.metric} ${sim.totalKW>DESIGN_KW?styles.metricWarn:''}`}>
             <div className={styles.metricVal}>{sim.totalKW.toFixed(0)}<span className={styles.metricUnit}>kW</span></div>
@@ -167,42 +261,46 @@ export default function SimulationPanel(){
           </div>
           <div className={`${styles.metric} ${sim.maxTemp>ASHRAE_ALLOW?styles.metricDanger:sim.maxTemp>ASHRAE_REC?styles.metricWarn:''}`}>
             <div className={styles.metricVal}>{sim.maxTemp.toFixed(1)}<span className={styles.metricUnit}>°C</span></div>
-            <div className={styles.metricLabel}>Peak Rack Temp</div>
+            <div className={styles.metricLabel}>Peak Temp (formula)</div>
           </div>
           <div className={`${styles.metric} ${sim.critical>0?styles.metricDanger:sim.violations>0?styles.metricWarn:styles.metricOk}`}>
             <div className={styles.metricVal}>{sim.violations}</div>
-            <div className={styles.metricLabel}>ASHRAE Violations{sim.critical>0?` (${sim.critical} critical)`:''}</div>
+            <div className={styles.metricLabel}>ASHRAE Violations{sim.critical>0?` (${sim.critical} crit)`:''}</div>
           </div>
         </div>
 
-        {/* Cosmos AI result — shown below the floorplan on the left */}
         {(cosmosResult||cosmosLoading||cosmosError)&&(
           <div className={`${styles.cosmosResult} ${cosmosError?styles.cosmosError:''}`}>
             {cosmosLoading&&<div style={{color:'#76b900',textAlign:'center'}}>⏳ Cosmos is analyzing the thermal scenario…</div>}
             {cosmosError&&<div>❌ {cosmosError}</div>}
-            {cosmosResult&&<>
-              <div className={styles.cosmosResultHeader}>
-                🔮 Cosmos3-Nano Analysis {usedImage?'(thermal image + scenario data)':'(scenario data)'}
-              </div>
-              {cosmosResult}
-            </>}
+            {cosmosResult&&<><div className={styles.cosmosResultHeader}>🔮 Cosmos3-Nano Analysis {usedImage?'(thermal image + data)':'(scenario data)'}</div>{cosmosResult}</>}
           </div>
         )}
       </div>
 
       <div className={styles.panel}>
-        {/* Ask Cosmos button — top of panel */}
+        {/* Cosmos Live Prediction Mode toggle */}
         <div className={styles.section}>
-          <button
-            className={`${styles.cosmosBtn} ${cosmosLoading?styles.cosmosBtnLoading:''}`}
-            onClick={askCosmos}
-            disabled={cosmosLoading}
-          >
-            {cosmosLoading?'⏳ Asking Cosmos AI…':'🔮 Ask Cosmos AI to Analyze This Scenario'}
-          </button>
+          <div className={styles.sectionTitle}>🔮 Cosmos Live Prediction</div>
+          <label className={styles.toggle}>
+            <input type="checkbox" checked={cosmosMode} onChange={e=>setCosmosMode(e.target.checked)}/>
+            <span className={styles.toggleSlider}/>
+            <span className={styles.toggleLabel}>{cosmosMode?'ON — auto-predicts on slider change':'OFF — formula only'}</span>
+          </label>
           <div className={styles.imageNote}>
-            Sends current simulation state + real thermal image to Cosmos3-Nano for AI prediction
+            {cosmosMode
+              ? 'Move any slider → Cosmos analyses thermal image after 1.5s → risk bands appear on map'
+              : 'Enable to overlay AI risk prediction on the floorplan'}
           </div>
+          {cosmosThinking&&<div className={styles.thinkingNote}>⏳ Cosmos is reading the thermal state…</div>}
+        </div>
+
+        {/* Ask full analysis */}
+        <div className={styles.section}>
+          <button className={`${styles.cosmosBtn} ${cosmosLoading?styles.cosmosBtnLoading:''}`} onClick={askCosmos} disabled={cosmosLoading}>
+            {cosmosLoading?'⏳ Asking Cosmos AI…':'Ask Cosmos AI — Full Analysis'}
+          </button>
+          <div className={styles.imageNote}>Sends scenario + real thermal image for deep analysis</div>
         </div>
 
         <div className={styles.section}>
@@ -229,9 +327,10 @@ export default function SimulationPanel(){
             const rowRacks=sim.racks.filter(r=>r.row===row);
             const avgT=rowRacks.reduce((s,r)=>s+r.temp_c,0)/rowRacks.length;
             const viol=rowRacks.filter(r=>!r.ashrae_rec).length;
+            const risk=cosmosRisk?.[`row${row}`];
             return(<div key={row}>
               <div className={styles.sliderRow}>
-                <span className={styles.sliderLabel}>Row {row}</span>
+                <span className={styles.sliderLabel} style={risk?{color:RISK_COLOR[risk]}:{}}>Row {row}{risk&&cosmosMode?` [${risk}]`:''}</span>
                 <input type="range" min={0} max={100} step={1} value={Math.round(getRowLoad(row)*100)} onChange={e=>{setRowOverrides(p=>({...p,[row]:e.target.value/100}));setScenario(-1);}} className={styles.slider}/>
                 <span className={styles.sliderVal}>{Math.round(getRowLoad(row)*100)}%</span>
               </div>
@@ -247,7 +346,7 @@ export default function SimulationPanel(){
             <span className={styles.toggleSlider}/>
             <span className={styles.toggleLabel}>{coolingOk?'Normal (N+1 online)':'FAULT — 50% capacity'}</span>
           </label>
-          {!coolingOk&&<div className={styles.faultNote}>⚠ Cooling failure doubles thermal delta — immediate ASHRAE risk</div>}
+          {!coolingOk&&<div className={styles.faultNote}>⚠ Cooling failure doubles thermal delta</div>}
         </div>
 
         {hoveredRack&&(
@@ -258,7 +357,7 @@ export default function SimulationPanel(){
                 <div key={k} className={styles.rackDetailRow}><span>{k}</span><strong>{v}</strong></div>
               ))}
               <div className={styles.rackDetailRow}><span>Temp</span><strong style={{color:!hoveredRack.ashrae_allow?'#f55':!hoveredRack.ashrae_rec?'#f5a623':'#76b900'}}>{hoveredRack.temp_c.toFixed(2)}°C</strong></div>
-              <div className={styles.rackDetailRow}><span>ASHRAE</span><strong style={{color:!hoveredRack.ashrae_allow?'#f55':!hoveredRack.ashrae_rec?'#f5a623':'#76b900'}}>{!hoveredRack.ashrae_allow?'⛔ Exceeds allowable':!hoveredRack.ashrae_rec?'⚠ Exceeds rec':'✓ Compliant'}</strong></div>
+              {cosmosMode&&cosmosRisk&&<div className={styles.rackDetailRow}><span>AI Risk</span><strong style={{color:RISK_COLOR[cosmosRisk[`row${hoveredRack.row}`]??'UNKNOWN']}}>{cosmosRisk[`row${hoveredRack.row}`]??'—'}</strong></div>}
             </div>
           </div>
         )}

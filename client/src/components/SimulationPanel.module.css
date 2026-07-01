@@ -355,3 +355,67 @@
   margin-top: 4px;
   font-style: italic;
 }
+
+/* ─── Cosmos live prediction ─── */
+.thinkingChip {
+  font-size: 0.72rem;
+  color: #76b900;
+  background: #0d1a00;
+  border: 1px solid #76b90066;
+  border-radius: 4px;
+  padding: 2px 8px;
+  animation: pulse 1s ease-in-out infinite;
+}
+.thinkingNote {
+  font-size: 0.7rem;
+  color: #76b900;
+  margin-top: 6px;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+/* Risk summary bar under floorplan */
+.riskBar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.riskCell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 4px 12px;
+  background: #0d0d1a;
+  border: 1px solid #333;
+  border-radius: 6px;
+  min-width: 60px;
+  gap: 2px;
+}
+.riskAction {
+  flex: 1;
+  font-size: 0.7rem;
+  color: #f5a623;
+  font-style: italic;
+  padding: 4px 8px;
+  background: #1a1000;
+  border: 1px solid #7a550066;
+  border-radius: 6px;
+  min-width: 120px;
+}
+
+/* SVG overlay animations */
+.criticalBand {
+  animation: critPulse 1.2s ease-in-out infinite;
+}
+.warningBand {
+  animation: warnPulse 2s ease-in-out infinite;
+}
+@keyframes critPulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.4; }
+}
+@keyframes warnPulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.5; }
+}

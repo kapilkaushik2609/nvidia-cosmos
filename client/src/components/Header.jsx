@@ -8,17 +8,17 @@ const STATUS_LABEL = {
   checking: 'Checking…',
 };
 
-export default function Header({ view = 'analyzer', onViewChange }) {
+export default function Header({ view = 'analyzer', onViewChange, onStatusChange }) {
   const [status, setStatus] = useState('checking');
 
   useEffect(() => {
     const poll = () =>
       fetch('/api/health')
         .then(r => r.json())
-        .then(d => setStatus(d.status))
-        .catch(() => setStatus('stopped'));
+        .then(d => { setStatus(d.status); onStatusChange?.(d.status); })
+        .catch(() => { setStatus('stopped'); onStatusChange?.('stopped'); });
     poll();
-    const id = setInterval(poll, 6000);
+    const id = setInterval(poll, 15000);
     return () => clearInterval(id);
   }, []);
 
