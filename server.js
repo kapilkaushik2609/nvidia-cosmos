@@ -10,19 +10,7 @@ const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const VLLM_URL = process.env.VLLM_URL || "http://127.0.0.1:8001";
-const ALLOC_BASE =
-  process.env.ALLOC_BASE ||
-  path.resolve(
-    __dirname,
-    "..",
-    "..",
-    "oasis_backend",
-    "src",
-    "simulation",
-    "sim-alloc-designer",
-    "allocations",
-    "20230123-225659-UTC_DFW_375_2800_STD",
-  );
+const ALLOC_BASE = process.env.ALLOC_BASE || __dirname;
 const MODEL = process.env.MODEL || "nvidia/Cosmos3-Nano";
 const PORT = process.env.PORT || 7086;
 const IDLE_TIMEOUT_MS = (process.env.IDLE_TIMEOUT_MIN || 10) * 60 * 1000;
@@ -315,6 +303,83 @@ app.post("/api/analyze-thermal", upload.single("image"), async (req, res) => {
     });
   } catch (err) {
     console.error("[analyze-thermal]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Simulation AI analysis — sends real thermal image + scenario state to Cosmos
+app.post("/api/analyze-simulation", async (req, res) => {
+  try {
+    await ensureVLLM();
+
+    const {
+      scenario, totalKW, facilKW, pue, maxTemp,
+      violations, critical, globalLoad, coolingOk, rowStats, topRisks,
+    } = req.body;
+
+    // Try to load the actual thermal composite image
+    const thermalImg = path.join(ALLOC_BASE, "thermal", "thermal_map_composite.png");
+    let imageContent = null;
+    if (fs.existsSync(thermalImg)) {
+      const b64 = fs.readFileSync(thermalImg).toString("base64");
+      imageContent = { type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } };
+    }
+
+    const prompt =
+`You are a datacenter thermal management AI analyzing the DFW datacenter (Vertex AI Systems, 70×40 ft, 52 racks, 3 rows, 375 kW IT design capacity).
+
+CURRENT SIMULATION SCENARIO: ${scenario}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+IT Load:           ${Number(totalKW).toFixed(0)} kW / 375 kW design (${(totalKW/375*100).toFixed(0)}%)
+Facility Power:    ${Number(facilKW).toFixed(0)} kW  |  PUE ${Number(pue).toFixed(2)}
+Global Rack Load:  ${Math.round(globalLoad*100)}%
+Peak Rack Temp:    ${Number(maxTemp).toFixed(1)}°C
+ASHRAE Rec (27°C): ${violations}/52 racks exceed recommended
+ASHRAE Allow (32°C): ${critical}/52 racks at critical
+Cooling System:    ${coolingOk ? "Normal (N+1 online)" : "⚠ FAULT — 50% capacity"}
+
+ROW TEMPERATURES:
+${(rowStats||[]).map(r=>`  Row ${r.row}: avg ${Number(r.avgTemp).toFixed(1)}°C, ${r.violations}/${r.count} racks exceed 27°C`).join("\n")}
+
+TOP AT-RISK RACKS:
+${(topRisks||[]).slice(0,5).map((r,i)=>`  ${i+1}. ${r.rack_id} (Row ${r.row}): ${Number(r.temp_c).toFixed(1)}°C, ${Number(r.power_kw).toFixed(1)} kW`).join("\n")}
+${imageContent ? "\nThe attached image is the actual thermal baseline map of this datacenter." : ""}
+
+Please provide a concise analysis:
+1. RISK ASSESSMENT — What are the critical thermal risks in this scenario?
+2. HOT SPOT PREDICTION — Which zones or racks are most likely to develop dangerous hot spots, and why?
+3. COOLING HEADROOM — How much headroom does the cooling system have before failure?
+4. LOAD REDISTRIBUTION — Which racks should be throttled first to restore thermal balance?
+5. TOP 3 ACTIONS — Specific steps the operations team should take right now.`;
+
+    const content = imageContent
+      ? [imageContent, { type: "text", text: prompt }]
+      : [{ type: "text", text: prompt }];
+
+    const payload = {
+      model: MODEL,
+      messages: [{ role: "user", content }],
+      max_tokens: 1500,
+    };
+
+    const upstream = await fetch(`${VLLM_URL}/v1/chat/completions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    const data = await upstream.json();
+    if (!upstream.ok)
+      return res.status(upstream.status).json({ error: JSON.stringify(data) });
+
+    resetIdle();
+    res.json({
+      result: data.choices?.[0]?.message?.content ?? "",
+      usage: data.usage ?? {},
+      used_image: !!imageContent,
+    });
+  } catch (err) {
+    console.error("[analyze-simulation]", err.message);
     res.status(500).json({ error: err.message });
   }
 });

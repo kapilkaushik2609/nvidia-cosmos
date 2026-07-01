@@ -300,3 +300,58 @@
 
 .rackDetailRow span  { color: #555; }
 .rackDetailRow strong { color: #ccc; font-weight: 600; font-family: monospace; }
+
+/* ─── Cosmos AI button + result ─── */
+.cosmosBtn {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #1a3300 0%, #0d1a00 100%);
+  border: 1px solid #76b900;
+  border-radius: 8px;
+  color: #76b900;
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: all 0.2s;
+}
+.cosmosBtn:hover:not(:disabled) { background: linear-gradient(135deg,#234400,#112200); box-shadow: 0 0 12px #76b90044; }
+.cosmosBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+.cosmosBtnLoading { animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+.cosmosResult {
+  background: #08100a;
+  border: 1px solid #1a3300;
+  border-radius: 8px;
+  padding: 0.85rem 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.73rem;
+  color: #bbb;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #333 transparent;
+}
+.cosmosResultHeader {
+  font-size: 0.68rem;
+  color: #76b900;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 0.5rem;
+}
+.cosmosError {
+  background: #1a0000;
+  border-color: #7a0000;
+  color: #f55;
+}
+.imageNote {
+  font-size: 0.65rem;
+  color: #555;
+  margin-top: 4px;
+  font-style: italic;
+}
