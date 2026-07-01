@@ -1,0 +1,1017 @@
+{
+  "metadata": {
+    "allocation_id": "20230123-225659-UTC_DFW_375_2800_STD",
+    "start_time_utc": "2023-01-23T22:56:59Z",
+    "end_time_utc": "2024-01-23T22:51:59Z",
+    "duration_minutes": 525600,
+    "sampling_interval_min": 5,
+    "points_per_series": 105120,
+    "generated_at": "2026-06-10T04:38:49.105907Z",
+    "configuration": "allocations/20230123-225659-UTC_DFW_375_2800_STD/config.json",
+    "calibration_profile_version": "v1",
+    "calibration_factors": {
+      "power_efficiency_factor": 0.9593999999999998,
+      "cooling_sensitivity": 1.045,
+      "rack_density_factor": 1.06,
+      "heat_rejection_factor": 1.09,
+      "idle_kw_per_rack": 4.0,
+      "peak_kw_per_rack": 18.0
+    }
+  },
+  "allocation_stats": {
+    "min_kw": 394.37,
+    "max_kw": 751.79,
+    "mean_kw": 565.14,
+    "p95_kw": 679.18
+  },
+  "series": [
+    {
+      "rack_id": "RACK-001",
+      "sensor_id": "RACK-001-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-001_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.528315544128418,
+        "max_kw": 14.459186553955078,
+        "mean_kw": 10.870613098144531,
+        "p95_kw": 13.062911033630371
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 17.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-002",
+      "sensor_id": "RACK-002-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-002_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.668966770172119,
+        "max_kw": 14.493446350097656,
+        "mean_kw": 10.868611335754395,
+        "p95_kw": 13.06153712272644
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 19.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-003",
+      "sensor_id": "RACK-003-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-003_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.386693000793457,
+        "max_kw": 14.39151382446289,
+        "mean_kw": 10.869095802307129,
+        "p95_kw": 13.065065288543702
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 21.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-004",
+      "sensor_id": "RACK-004-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-004_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.7895073890686035,
+        "max_kw": 14.376971244812012,
+        "mean_kw": 10.868242263793945,
+        "p95_kw": 13.066378974914551
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 23.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-005",
+      "sensor_id": "RACK-005-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-005_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.768459320068359,
+        "max_kw": 14.403895378112793,
+        "mean_kw": 10.867873191833496,
+        "p95_kw": 13.057360124588012
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 25.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-006",
+      "sensor_id": "RACK-006-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-006_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.442473888397217,
+        "max_kw": 14.387428283691406,
+        "mean_kw": 10.869466781616211,
+        "p95_kw": 13.062556648254393
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 27.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-007",
+      "sensor_id": "RACK-007-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-007_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.3913702964782715,
+        "max_kw": 14.420866012573242,
+        "mean_kw": 10.867289543151855,
+        "p95_kw": 13.061194896697998
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 29.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-008",
+      "sensor_id": "RACK-008-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-008_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.530068874359131,
+        "max_kw": 14.406764030456543,
+        "mean_kw": 10.868879318237305,
+        "p95_kw": 13.066886854171752
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 31.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-009",
+      "sensor_id": "RACK-009-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-009_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.571018695831299,
+        "max_kw": 14.473237991333008,
+        "mean_kw": 10.867116928100586,
+        "p95_kw": 13.060222768783568
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 33.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-010",
+      "sensor_id": "RACK-010-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-010_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.405446529388428,
+        "max_kw": 14.404444694519043,
+        "mean_kw": 10.8693208694458,
+        "p95_kw": 13.063931083679199
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 35.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-011",
+      "sensor_id": "RACK-011-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-011_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.6829752922058105,
+        "max_kw": 14.389835357666016,
+        "mean_kw": 10.868868827819824,
+        "p95_kw": 13.063121366500853
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 37.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-012",
+      "sensor_id": "RACK-012-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-012_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.743697166442871,
+        "max_kw": 14.480381965637207,
+        "mean_kw": 10.864302635192871,
+        "p95_kw": 13.05265531539917
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 39.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-013",
+      "sensor_id": "RACK-013-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-013_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.661849021911621,
+        "max_kw": 14.311288833618164,
+        "mean_kw": 10.867528915405273,
+        "p95_kw": 13.064604949951171
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 41.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-014",
+      "sensor_id": "RACK-014-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-014_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.716372966766357,
+        "max_kw": 14.362455368041992,
+        "mean_kw": 10.867143630981445,
+        "p95_kw": 13.055181550979611
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 43.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-015",
+      "sensor_id": "RACK-015-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-015_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.738290786743164,
+        "max_kw": 14.568849563598633,
+        "mean_kw": 10.868730545043945,
+        "p95_kw": 13.061711072921753
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 45.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-016",
+      "sensor_id": "RACK-016-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-016_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.637397289276123,
+        "max_kw": 14.642752647399902,
+        "mean_kw": 10.86690902709961,
+        "p95_kw": 13.059202432632445
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 47.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-017",
+      "sensor_id": "RACK-017-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-017_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.624035358428955,
+        "max_kw": 14.543736457824707,
+        "mean_kw": 10.869853973388672,
+        "p95_kw": 13.059199666976928
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 49.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-018",
+      "sensor_id": "RACK-018-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-018_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.783519744873047,
+        "max_kw": 14.311159133911133,
+        "mean_kw": 10.868045806884766,
+        "p95_kw": 13.05974621772766
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 1,
+      "position_ft": {
+        "x": 51.0,
+        "y": 12.0
+      }
+    },
+    {
+      "rack_id": "RACK-019",
+      "sensor_id": "RACK-019-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-019_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.604064464569092,
+        "max_kw": 14.424341201782227,
+        "mean_kw": 10.867704391479492,
+        "p95_kw": 13.062407875061036
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 17.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-020",
+      "sensor_id": "RACK-020-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-020_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.696186542510986,
+        "max_kw": 14.379076957702637,
+        "mean_kw": 10.867169380187988,
+        "p95_kw": 13.057147359848022
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 19.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-021",
+      "sensor_id": "RACK-021-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-021_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.712976455688477,
+        "max_kw": 14.289401054382324,
+        "mean_kw": 10.868674278259277,
+        "p95_kw": 13.060947704315184
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 21.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-022",
+      "sensor_id": "RACK-022-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-022_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.719794750213623,
+        "max_kw": 14.361452102661133,
+        "mean_kw": 10.868383407592773,
+        "p95_kw": 13.0553747177124
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 23.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-023",
+      "sensor_id": "RACK-023-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-023_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.490119934082031,
+        "max_kw": 14.629218101501465,
+        "mean_kw": 10.86873722076416,
+        "p95_kw": 13.06765809059143
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 25.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-024",
+      "sensor_id": "RACK-024-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-024_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.690161228179932,
+        "max_kw": 14.532434463500977,
+        "mean_kw": 10.868592262268066,
+        "p95_kw": 13.063510942459105
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 27.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-025",
+      "sensor_id": "RACK-025-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-025_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.63916540145874,
+        "max_kw": 14.331498146057129,
+        "mean_kw": 10.866328239440918,
+        "p95_kw": 13.057531595230103
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 29.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-026",
+      "sensor_id": "RACK-026-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-026_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.54951810836792,
+        "max_kw": 14.447831153869629,
+        "mean_kw": 10.869071960449219,
+        "p95_kw": 13.05727777481079
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 31.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-027",
+      "sensor_id": "RACK-027-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-027_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.7797675132751465,
+        "max_kw": 14.270051956176758,
+        "mean_kw": 10.868263244628906,
+        "p95_kw": 13.05863513946533
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 33.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-028",
+      "sensor_id": "RACK-028-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-028_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.405019760131836,
+        "max_kw": 14.442963600158691,
+        "mean_kw": 10.869515419006348,
+        "p95_kw": 13.059958505630494
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 35.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-029",
+      "sensor_id": "RACK-029-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-029_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.587649822235107,
+        "max_kw": 14.413686752319336,
+        "mean_kw": 10.867833137512207,
+        "p95_kw": 13.05897912979126
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 37.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-030",
+      "sensor_id": "RACK-030-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-030_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.841346740722656,
+        "max_kw": 14.353343963623047,
+        "mean_kw": 10.87053108215332,
+        "p95_kw": 13.05988597869873
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 39.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-031",
+      "sensor_id": "RACK-031-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-031_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.569014072418213,
+        "max_kw": 14.41218090057373,
+        "mean_kw": 10.865592002868652,
+        "p95_kw": 13.059403133392333
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 41.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-032",
+      "sensor_id": "RACK-032-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-032_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.507762432098389,
+        "max_kw": 14.378132820129395,
+        "mean_kw": 10.868197441101074,
+        "p95_kw": 13.0640362739563
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 43.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-033",
+      "sensor_id": "RACK-033-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-033_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.4569478034973145,
+        "max_kw": 14.481446266174316,
+        "mean_kw": 10.867061614990234,
+        "p95_kw": 13.062103986740112
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 45.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-034",
+      "sensor_id": "RACK-034-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-034_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.49824333190918,
+        "max_kw": 14.54968547821045,
+        "mean_kw": 10.870415687561035,
+        "p95_kw": 13.062040948867798
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 47.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-035",
+      "sensor_id": "RACK-035-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-035_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.712247371673584,
+        "max_kw": 14.563968658447266,
+        "mean_kw": 10.870843887329102,
+        "p95_kw": 13.068549394607542
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 2,
+      "position_ft": {
+        "x": 49.0,
+        "y": 20.0
+      }
+    },
+    {
+      "rack_id": "RACK-036",
+      "sensor_id": "RACK-036-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-036_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.598415374755859,
+        "max_kw": 14.431770324707031,
+        "mean_kw": 10.868310928344727,
+        "p95_kw": 13.061782026290892
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 17.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-037",
+      "sensor_id": "RACK-037-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-037_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.544098854064941,
+        "max_kw": 14.37231731414795,
+        "mean_kw": 10.868330001831055,
+        "p95_kw": 13.061416721343992
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 19.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-038",
+      "sensor_id": "RACK-038-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-038_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.601847171783447,
+        "max_kw": 14.5916748046875,
+        "mean_kw": 10.868949890136719,
+        "p95_kw": 13.065117120742798
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 21.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-039",
+      "sensor_id": "RACK-039-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-039_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.551945686340332,
+        "max_kw": 14.292146682739258,
+        "mean_kw": 10.868825912475586,
+        "p95_kw": 13.05520977973938
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 23.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-040",
+      "sensor_id": "RACK-040-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-040_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.597846031188965,
+        "max_kw": 14.412615776062012,
+        "mean_kw": 10.866069793701172,
+        "p95_kw": 13.058166694641113
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 25.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-041",
+      "sensor_id": "RACK-041-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-041_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.441190242767334,
+        "max_kw": 14.45612907409668,
+        "mean_kw": 10.867900848388672,
+        "p95_kw": 13.062537622451782
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 27.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-042",
+      "sensor_id": "RACK-042-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-042_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.7294440269470215,
+        "max_kw": 14.74602222442627,
+        "mean_kw": 10.867338180541992,
+        "p95_kw": 13.060581493377684
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 29.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-043",
+      "sensor_id": "RACK-043-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-043_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.558318614959717,
+        "max_kw": 14.61098575592041,
+        "mean_kw": 10.865761756896973,
+        "p95_kw": 13.066476774215698
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 31.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-044",
+      "sensor_id": "RACK-044-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-044_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.552661895751953,
+        "max_kw": 14.560257911682129,
+        "mean_kw": 10.86812973022461,
+        "p95_kw": 13.060959005355835
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 33.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-045",
+      "sensor_id": "RACK-045-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-045_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.39401912689209,
+        "max_kw": 14.72600269317627,
+        "mean_kw": 10.869475364685059,
+        "p95_kw": 13.059058237075805
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 35.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-046",
+      "sensor_id": "RACK-046-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-046_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.54189395904541,
+        "max_kw": 14.565316200256348,
+        "mean_kw": 10.86884880065918,
+        "p95_kw": 13.061551427841186
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 37.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-047",
+      "sensor_id": "RACK-047-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-047_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.437748432159424,
+        "max_kw": 14.414051055908203,
+        "mean_kw": 10.866872787475586,
+        "p95_kw": 13.057463979721067
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 39.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-048",
+      "sensor_id": "RACK-048-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-048_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.579517841339111,
+        "max_kw": 14.465246200561523,
+        "mean_kw": 10.867424964904785,
+        "p95_kw": 13.062162160873411
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 41.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-049",
+      "sensor_id": "RACK-049-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-049_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.668766975402832,
+        "max_kw": 14.413609504699707,
+        "mean_kw": 10.869043350219727,
+        "p95_kw": 13.062860202789302
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 43.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-050",
+      "sensor_id": "RACK-050-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-050_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.4330153465271,
+        "max_kw": 14.51589298248291,
+        "mean_kw": 10.866971015930176,
+        "p95_kw": 13.067121791839599
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 45.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-051",
+      "sensor_id": "RACK-051-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-051_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.298086166381836,
+        "max_kw": 14.489959716796875,
+        "mean_kw": 10.86748218536377,
+        "p95_kw": 13.059008026123045
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 47.0,
+        "y": 30.0
+      }
+    },
+    {
+      "rack_id": "RACK-052",
+      "sensor_id": "RACK-052-SENSOR",
+      "file": "allocations/20230123-225659-UTC_DFW_375_2800_STD/powerdraw/RACK-052_power.csv",
+      "points": 105120,
+      "stats": {
+        "min_kw": 7.305901527404785,
+        "max_kw": 14.638765335083008,
+        "mean_kw": 10.868093490600586,
+        "p95_kw": 13.061902666091918
+      },
+      "power_kw": 17.5,
+      "workload_type": "std",
+      "row": 3,
+      "position_ft": {
+        "x": 49.0,
+        "y": 30.0
+      }
+    }
+  ]
+}

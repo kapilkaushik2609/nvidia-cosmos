@@ -1,0 +1,607 @@
+{
+  "metadata": {
+    "type": "thermal_overlay",
+    "grid_resolution_ft": 0.5,
+    "source_model": "/home/block2/oasis_backend/src/simulation/sim-alloc-designer/allocations/20230123-225659-UTC_DFW_375_2800_STD/model_3d.json",
+    "source_config": "/home/block2/oasis_backend/src/simulation/sim-alloc-designer/allocations/20230123-225659-UTC_DFW_375_2800_STD/config.json",
+    "source_report": "/home/block2/oasis_backend/src/simulation/sim-alloc-designer/allocations/20230123-225659-UTC_DFW_375_2800_STD/report.json",
+    "calibration_profile_version": "v1",
+    "calibration_factors": {
+      "power_efficiency_factor": 1.0824,
+      "cooling_sensitivity": 1.045,
+      "rack_density_factor": 1.06,
+      "heat_rejection_factor": 1.09,
+      "idle_kw_per_rack": 4.0,
+      "peak_kw_per_rack": 18.0
+    },
+    "ashrae_limits": {
+      "recommended_min_c": 18.0,
+      "recommended_max_c": 27.0,
+      "allowable_min_c": 15.0,
+      "allowable_max_c": 32.0
+    },
+    "temperature_range": {
+      "min_c": 19.398801882424166,
+      "max_c": 29.53735990488957,
+      "mean_c": 22.648405571194054
+    },
+    "ashrae_compliance": {
+      "recommended_violations_components": 52,
+      "allowable_violations_components": 0
+    }
+  },
+  "component_temperatures": [
+    {
+      "id": "RACK-001",
+      "type": "rack",
+      "temperature_c": 29.53517019494901,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-002",
+      "type": "rack",
+      "temperature_c": 29.537297949208735,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-003",
+      "type": "rack",
+      "temperature_c": 29.537307973256723,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-004",
+      "type": "rack",
+      "temperature_c": 29.537309169058002,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-005",
+      "type": "rack",
+      "temperature_c": 29.537309281117487,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-006",
+      "type": "rack",
+      "temperature_c": 29.53730928808848,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-007",
+      "type": "rack",
+      "temperature_c": 29.53730928836654,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-008",
+      "type": "rack",
+      "temperature_c": 29.53730928837352,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-009",
+      "type": "rack",
+      "temperature_c": 29.537309288373628,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-010",
+      "type": "rack",
+      "temperature_c": 29.53730928837355,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-011",
+      "type": "rack",
+      "temperature_c": 29.537309288369137,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-012",
+      "type": "rack",
+      "temperature_c": 29.53730928821269,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-013",
+      "type": "rack",
+      "temperature_c": 29.537309284665323,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-014",
+      "type": "rack",
+      "temperature_c": 29.537309232018984,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-015",
+      "type": "rack",
+      "temperature_c": 29.53730870649892,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-016",
+      "type": "rack",
+      "temperature_c": 29.537305054678693,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-017",
+      "type": "rack",
+      "temperature_c": 29.537278241490817,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-018",
+      "type": "rack",
+      "temperature_c": 29.523738101330707,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-019",
+      "type": "rack",
+      "temperature_c": 29.53520649185348,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-020",
+      "type": "rack",
+      "temperature_c": 29.53734674685039,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-021",
+      "type": "rack",
+      "temperature_c": 29.53735830100663,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-022",
+      "type": "rack",
+      "temperature_c": 29.537359756738958,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-023",
+      "type": "rack",
+      "temperature_c": 29.537359895807406,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-024",
+      "type": "rack",
+      "temperature_c": 29.537359904531684,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-025",
+      "type": "rack",
+      "temperature_c": 29.53735990488068,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-026",
+      "type": "rack",
+      "temperature_c": 29.537359904889435,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-027",
+      "type": "rack",
+      "temperature_c": 29.53735990488957,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-028",
+      "type": "rack",
+      "temperature_c": 29.5373599048893,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-029",
+      "type": "rack",
+      "temperature_c": 29.5373599048743,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-030",
+      "type": "rack",
+      "temperature_c": 29.537359904347973,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-031",
+      "type": "rack",
+      "temperature_c": 29.53735989266923,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-032",
+      "type": "rack",
+      "temperature_c": 29.537359724364876,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-033",
+      "type": "rack",
+      "temperature_c": 29.537358066028176,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-034",
+      "type": "rack",
+      "temperature_c": 29.53733845085817,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-035",
+      "type": "rack",
+      "temperature_c": 29.524379033024793,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-036",
+      "type": "rack",
+      "temperature_c": 29.53513186267986,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-037",
+      "type": "rack",
+      "temperature_c": 29.537278998983304,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-038",
+      "type": "rack",
+      "temperature_c": 29.53728853681678,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-039",
+      "type": "rack",
+      "temperature_c": 29.5372896728322,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-040",
+      "type": "rack",
+      "temperature_c": 29.53728977998627,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-041",
+      "type": "rack",
+      "temperature_c": 29.537289786658576,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-042",
+      "type": "rack",
+      "temperature_c": 29.53728978692341,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-043",
+      "type": "rack",
+      "temperature_c": 29.537289786929996,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-044",
+      "type": "rack",
+      "temperature_c": 29.537289786930092,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-045",
+      "type": "rack",
+      "temperature_c": 29.53728978692979,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-046",
+      "type": "rack",
+      "temperature_c": 29.537289786912453,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-047",
+      "type": "rack",
+      "temperature_c": 29.537289786292853,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-048",
+      "type": "rack",
+      "temperature_c": 29.537289772372795,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-049",
+      "type": "rack",
+      "temperature_c": 29.53728957176916,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-050",
+      "type": "rack",
+      "temperature_c": 29.53728763339657,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-051",
+      "type": "rack",
+      "temperature_c": 29.537266063834924,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    },
+    {
+      "id": "RACK-052",
+      "type": "rack",
+      "temperature_c": 29.523701159209914,
+      "severity": "elevated",
+      "power_kw": 17.5,
+      "ashrae_compliance": {
+        "recommended": false,
+        "allowable": true
+      }
+    }
+  ]
+}
