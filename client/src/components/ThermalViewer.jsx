@@ -4,33 +4,27 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader }    from 'three/addons/loaders/GLTFLoader.js';
 import styles from './ThermalViewer.module.css';
 
-const THERMAL_MAPS = [
-  { key: 'thermal_map_composite.png', label: 'Composite' },
-  { key: 'thermal_map_floor.png',     label: 'Floor'     },
-  { key: 'thermal_map_ceiling.png',   label: 'Ceiling'   },
-  { key: 'thermal_map_rack.png',      label: 'Rack'      },
-];
-
 const DEFAULT_PROMPT =
-  'Analyze this thermal map of a datacenter. Identify hot spots, cold zones, ' +
-  'aisle temperature patterns, and ASHRAE compliance concerns.';
+  'Analyze this 3D model or image. Describe what you observe — ' +
+  'structures, patterns, anomalies, temperature zones, or any notable features.';
 
 export default function ThermalViewer() {
-  const canvasRef   = useRef(null);
-  const loadGLBRef  = useRef(null);   // stable function set inside useEffect
+  const canvasRef  = useRef(null);
+  const loadGLBRef = useRef(null);
 
-  const [modelLabel, setModelLabel] = useState('');
-  const [loading,    setLoading]    = useState(false);
-  const [loadPct,    setLoadPct]    = useState(0);
-  const [dragging,   setDragging]   = useState(false);
-  const [stats,      setStats]      = useState(null);
-  const [activeMap,  setActiveMap]  = useState('thermal_map_composite.png');
-  const [analyzing,  setAnalyzing]  = useState(false);
-  const [starting,   setStarting]   = useState(false);
-  const [result,     setResult]     = useState('');
-  const [isError,    setIsError]    = useState(false);
-  const [usage,      setUsage]      = useState(null);
-  const [prompt,     setPrompt]     = useState(DEFAULT_PROMPT);
+  const [modelLabel, setModelLabel]   = useState('');
+  const [modelLoaded, setModelLoaded] = useState(false);
+  const [loading,    setLoading]      = useState(false);
+  const [loadPct,    setLoadPct]      = useState(0);
+  const [dragging,   setDragging]     = useState(false);
+
+  const [analyzing,  setAnalyzing]    = useState(false);
+  const [starting,   setStarting]     = useState(false);
+  const [result,     setResult]       = useState('');
+  const [isError,    setIsError]      = useState(false);
+  const [usage,      setUsage]        = useState(null);
+  const [prompt,     setPrompt]       = useState(DEFAULT_PROMPT);
+
   const [uploadedImage,     setUploadedImage]     = useState(null);
   const [uploadedImageName, setUploadedImageName] = useState('');
 
@@ -39,7 +33,7 @@ export default function ThermalViewer() {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -52,10 +46,10 @@ export default function ThermalViewer() {
     camera.position.set(0, 32, 52);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping  = true;
-    controls.dampingFactor  = 0.06;
-    controls.minDistance    = 5;
-    controls.maxDistance    = 150;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.minDistance   = 5;
+    controls.maxDistance   = 150;
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.8));
     const sun = new THREE.DirectionalLight(0xffffff, 1.1);
@@ -69,14 +63,12 @@ export default function ThermalViewer() {
     const loader = new GLTFLoader();
     let currentModel = null;
 
-    /* Stable load function exposed via ref */
     loadGLBRef.current = (url, label, onDone) => {
       setLoading(true);
       setLoadPct(0);
       loader.load(url, (gltf) => {
         if (currentModel) scene.remove(currentModel);
         currentModel = gltf.scene;
-
         const box    = new THREE.Box3().setFromObject(currentModel);
         const center = box.getCenter(new THREE.Vector3());
         const size   = box.getSize(new THREE.Vector3());
@@ -84,12 +76,11 @@ export default function ThermalViewer() {
         currentModel.position.sub(center.multiplyScalar(scale));
         currentModel.scale.setScalar(scale);
         scene.add(currentModel);
-
         camera.position.set(0, 32, 52);
         controls.target.set(0, 0, 0);
         controls.update();
-
         setModelLabel(label);
+        setModelLoaded(true);
         setLoading(false);
         onDone?.();
       }, (xhr) => {
@@ -100,10 +91,6 @@ export default function ThermalViewer() {
       });
     };
 
-    /* No default model — user drops their own GLB */
-    setLoading(false);
-
-    /* Resize */
     const resize = () => {
       const w = canvas.parentElement?.clientWidth  || canvas.clientWidth;
       const h = canvas.parentElement?.clientHeight || canvas.clientHeight;
@@ -114,7 +101,6 @@ export default function ThermalViewer() {
     resize();
     window.addEventListener('resize', resize);
 
-    /* Animate */
     let animId;
     const animate = () => {
       animId = requestAnimationFrame(animate);
@@ -130,20 +116,9 @@ export default function ThermalViewer() {
     };
   }, []);
 
-  /* ── Load stats ──────────────────────────────────────────────────── */
-  useEffect(() => {
-    Promise.all([
-      fetch('/config.json').then(r => r.json()).catch(() => null),
-      fetch('/thermal/thermal_overlay.json').then(r => r.json()).catch(() => null),
-      fetch('/powerdraw/powerdraw_summary.json').then(r => r.json()).catch(() => null),
-    ]).then(([cfg, thermal, pw]) => {
-      setStats({ cfg, thermal, pw });
-    });
-  }, []);
-
-  /* ── Drag & Drop ─────────────────────────────────────────────────── */
+  /* ── Drag & Drop for GLB ─────────────────────────────────────────── */
   const handleDragEnter = useCallback(e => { e.preventDefault(); setDragging(true); },  []);
-  const handleDragOver  = useCallback(e => { e.preventDefault(); },                      []);
+  const handleDragOver  = useCallback(e => { e.preventDefault(); },                     []);
   const handleDragLeave = useCallback(e => {
     if (!e.currentTarget.contains(e.relatedTarget)) setDragging(false);
   }, []);
@@ -157,7 +132,6 @@ export default function ThermalViewer() {
     }
   }, []);
 
-  /* ── File picker ─────────────────────────────────────────────────── */
   const handleFilePick = useCallback(e => {
     const file = e.target.files[0];
     if (file && loadGLBRef.current) {
@@ -167,6 +141,7 @@ export default function ThermalViewer() {
     e.target.value = '';
   }, []);
 
+  /* ── Image upload for Cosmos ─────────────────────────────────────── */
   const handleAnalyzeImageUpload = useCallback(e => {
     const file = e.target.files[0];
     if (file) { setUploadedImage(file); setUploadedImageName(file.name); }
@@ -187,11 +162,22 @@ export default function ThermalViewer() {
 
       const fd = new FormData();
       fd.append('prompt', prompt);
+
       if (uploadedImage) {
+        // Use the uploaded image directly
         fd.append('image', uploadedImage);
+      } else if (modelLoaded && canvasRef.current) {
+        // Screenshot the current 3D view
+        const dataUrl = canvasRef.current.toDataURL('image/png');
+        const blob    = await (await fetch(dataUrl)).blob();
+        fd.append('image', new File([blob], 'viewer.png', { type: 'image/png' }));
       } else {
-        fd.append('thermal_file', activeMap);
+        setIsError(true);
+        setResult('Drop a .glb file onto the viewer, or upload an image to analyze.');
+        setAnalyzing(false);
+        return;
       }
+
       const res  = await fetch('/api/analyze-thermal', { method: 'POST', body: fd });
       const data = await res.json();
       setStarting(false);
@@ -207,7 +193,12 @@ export default function ThermalViewer() {
     }
   };
 
-  const s = stats;
+  /* ── What will be analyzed ───────────────────────────────────────── */
+  const sourceLabel = uploadedImageName
+    ? `📎 ${uploadedImageName}`
+    : modelLoaded
+    ? `🔲 3D canvas screenshot — ${modelLabel}`
+    : null;
 
   return (
     <div className={styles.wrap}>
@@ -222,114 +213,67 @@ export default function ThermalViewer() {
       >
         <canvas ref={canvasRef} className={styles.canvas} />
 
-        {/* Drop overlay */}
         {dragging && (
           <div className={styles.dropOverlay}>
             <div className={styles.dropIcon}>📦</div>
-            <div className={styles.dropText}>Drop .glb model to load</div>
-            <div className={styles.dropSub}>Replaces current 3D model</div>
+            <div className={styles.dropText}>Drop .glb to load in 3D viewer</div>
           </div>
         )}
 
-        {/* Loading overlay */}
         {loading && (
           <div className={styles.loadOverlay}>
             <div className={styles.spinner} />
             <div className={styles.loadText}>
-              {loadPct > 0 ? `Loading… ${loadPct}%` : 'Loading 3D thermal model…'}
+              {loadPct > 0 ? `Loading ${loadPct}%` : 'Loading model…'}
             </div>
           </div>
         )}
 
-        {/* Load GLB button */}
+        {!modelLoaded && !loading && (
+          <div className={styles.emptyHint}>
+            <div className={styles.emptyIcon}>📦</div>
+            <div className={styles.emptyText}>Drop a .glb file here</div>
+            <div className={styles.emptySub}>or use the button below to browse</div>
+          </div>
+        )}
+
         <label className={styles.loadBtn}>
           📂 Load .glb
           <input type="file" accept=".glb" onChange={handleFilePick} hidden />
         </label>
 
-        {/* Bottom bar */}
         <div className={styles.bottomBar}>
           <span className={styles.hint}>Drag to orbit · Scroll to zoom · Right-drag to pan</span>
-          <span className={styles.modelTag}>{modelLabel || 'Drop a .glb to load'}</span>
+          {modelLabel && <span className={styles.modelTag}>{modelLabel}</span>}
         </div>
       </div>
 
       {/* ── Side Panel ── */}
       <div className={styles.panel}>
-
-        {/* Stats */}
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>Allocation Stats</div>
-          <div className={styles.grid}>
-            <div className={styles.card}>
-              <div className={styles.cardLabel}>Racks</div>
-              <div className={styles.cardVal}>{s?.cfg?.rack_specs?.count ?? '—'}</div>
-            </div>
-            <div className={styles.card}>
-              <div className={styles.cardLabel}>IT Load</div>
-              <div className={styles.cardVal}>
-                {s?.cfg?.it_load_kw ?? '—'}<span className={styles.unit}>kW</span>
-              </div>
-            </div>
-            <div className={`${styles.card} ${styles.warn}`}>
-              <div className={styles.cardLabel}>Peak Power</div>
-              <div className={styles.cardVal}>
-                {s?.pw ? s.pw.allocation_stats.max_kw.toFixed(0) : '—'}
-                <span className={styles.unit}>kW</span>
-              </div>
-            </div>
-            <div className={styles.card}>
-              <div className={styles.cardLabel}>Avg Temp</div>
-              <div className={styles.cardVal}>
-                {s?.thermal ? s.thermal.metadata.temperature_range.mean_c.toFixed(1) : '—'}
-                <span className={styles.unit}>°C</span>
-              </div>
-            </div>
-          </div>
-          {s?.thermal?.metadata?.ashrae_compliance?.recommended_violations_components > 0 && (
-            <div className={styles.ashrae}>
-              ⚠️ {s.thermal.metadata.ashrae_compliance.recommended_violations_components} racks
-              exceed ASHRAE recommended limit (27°C)
-            </div>
-          )}
-        </div>
-
-        {/* Thermal maps */}
-        <div className={styles.section}>
-          <div className={styles.sectionTitle}>Thermal Maps</div>
-          <div className={styles.tabRow}>
-            {THERMAL_MAPS.map(m => (
-              <button
-                key={m.key}
-                className={`${styles.tab} ${activeMap === m.key ? styles.activeTab : ''}`}
-                onClick={() => setActiveMap(m.key)}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-          <img
-            className={styles.thermalImg}
-            src={`/thermal/${activeMap}`}
-            alt="Thermal map"
-          />
-        </div>
-
-        {/* Cosmos */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Cosmos AI Analysis</div>
+
+          {/* Source indicator */}
+          <div className={styles.sourceRow}>
+            {sourceLabel
+              ? <span className={styles.sourceChip}>{sourceLabel}</span>
+              : <span className={styles.sourcePlaceholder}>
+                  Drop a .glb into the viewer, or upload an image below
+                </span>
+            }
+          </div>
+
           <textarea
             className={styles.promptBox}
             rows={3}
             value={prompt}
             onChange={e => setPrompt(e.target.value)}
           />
-          {/* Upload any image for analysis */}
+
+          {/* Optional: upload a specific image instead of the 3D view */}
           <div className={styles.uploadRow}>
             <label className={styles.uploadImgBtn}>
-              {uploadedImageName
-                ? <>✔ {uploadedImageName}</>
-                : <>📎 Upload image to analyze</>}
+              {uploadedImageName ? <>✔ {uploadedImageName}</> : <>📎 Upload image instead of 3D view</>}
               <input type="file" accept="image/*" onChange={handleAnalyzeImageUpload} hidden />
             </label>
             {uploadedImageName && (
@@ -345,20 +289,21 @@ export default function ThermalViewer() {
               ? <><span className={styles.btnSpin} /> Analyzing…</>
               : '⚡ Analyze with Cosmos'}
           </button>
+
           {starting && (
-            <div className={styles.startingNote}>
-              Model starting — first request takes 2–3 min
-            </div>
+            <div className={styles.startingNote}>Model starting — first request takes 2–3 min</div>
           )}
+
           {result && (
             <div className={`${styles.result} ${isError ? styles.resultErr : ''}`}>
               {result}
             </div>
           )}
+
           {usage && <div className={styles.usageNote}>{usage} tokens</div>}
         </div>
-
       </div>
+
     </div>
   );
 }
