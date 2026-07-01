@@ -1,0 +1,302 @@
+.wrap {
+  display: flex;
+  gap: 1.5rem;
+  padding: 1.25rem 1.5rem;
+  height: calc(100vh - 64px);
+  overflow: hidden;
+  background: #0a0a12;
+  color: #e0e0e0;
+  box-sizing: border-box;
+}
+
+/* ─── Left: floor plan ─── */
+.left {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.floorHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.floorTitle {
+  font-size: 0.78rem;
+  color: #888;
+  font-family: monospace;
+  letter-spacing: 0.02em;
+}
+
+.hoverChip {
+  font-size: 0.75rem;
+  background: #1a1a2a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 2px 8px;
+  color: #ccc;
+  font-family: monospace;
+}
+
+.floorSvg {
+  width: 100%;
+  flex: 1 1 0;
+  border-radius: 8px;
+  border: 1px solid #1c1c2c;
+  min-height: 0;
+}
+
+.loadingMsg {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #555;
+  font-size: 0.85rem;
+}
+
+/* ─── Legend ─── */
+.legend {
+  flex-shrink: 0;
+}
+
+.legendBar {
+  height: 10px;
+  border-radius: 5px;
+  border: 1px solid #222;
+}
+
+.legendLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.68rem;
+  color: #666;
+  margin-top: 3px;
+  font-family: monospace;
+}
+
+/* ─── Metrics row ─── */
+.metricsRow {
+  display: flex;
+  gap: 0.75rem;
+  flex-shrink: 0;
+}
+
+.metric {
+  flex: 1;
+  background: #10101a;
+  border: 1px solid #1e1e2e;
+  border-radius: 8px;
+  padding: 0.65rem 0.85rem;
+  text-align: center;
+}
+
+.metric.metricWarn   { border-color: #7a5500; background: #1a1200; }
+.metric.metricDanger { border-color: #7a0000; background: #1a0000; }
+.metric.metricOk     { border-color: #004d00; background: #001a00; }
+
+.metricVal {
+  font-size: 1.55rem;
+  font-weight: 700;
+  color: #76b900;
+  line-height: 1;
+}
+
+.metricWarn  .metricVal  { color: #f5a623; }
+.metricDanger .metricVal { color: #ff4444; }
+.metricOk     .metricVal { color: #4caf50; }
+
+.metricUnit {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: #666;
+  margin-left: 2px;
+}
+
+.metricLabel {
+  font-size: 0.68rem;
+  color: #666;
+  margin-top: 4px;
+  font-family: monospace;
+}
+
+/* ─── Right panel ─── */
+.panel {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #333 transparent;
+}
+
+.panel::-webkit-scrollbar       { width: 4px; }
+.panel::-webkit-scrollbar-thumb { background: #333; border-radius: 2px; }
+
+/* ─── Section ─── */
+.section {
+  background: #10101a;
+  border: 1px solid #1e1e2e;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+}
+
+.sectionTitle {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #76b900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.6rem;
+}
+
+/* ─── Scenario buttons ─── */
+.scenarioGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.scBtn {
+  background: #181825;
+  border: 1px solid #2a2a3a;
+  border-radius: 6px;
+  color: #aaa;
+  font-size: 0.73rem;
+  padding: 5px 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  text-align: center;
+}
+
+.scBtn:hover   { border-color: #76b900; color: #e0e0e0; }
+.scActive      { border-color: #76b900; background: #1a2800; color: #76b900; font-weight: 600; }
+
+.scenarioDesc {
+  font-size: 0.68rem;
+  color: #555;
+  font-style: italic;
+  line-height: 1.4;
+}
+
+/* ─── Sliders ─── */
+.sliderRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 3px;
+}
+
+.sliderLabel {
+  font-size: 0.72rem;
+  color: #888;
+  width: 40px;
+  flex-shrink: 0;
+}
+
+.slider {
+  flex: 1;
+  accent-color: #76b900;
+  cursor: pointer;
+  height: 4px;
+}
+
+.sliderVal {
+  font-size: 0.72rem;
+  color: #ccc;
+  width: 32px;
+  text-align: right;
+  font-family: monospace;
+  flex-shrink: 0;
+}
+
+.sliderSub {
+  font-size: 0.67rem;
+  color: #555;
+  font-family: monospace;
+  margin-bottom: 0.4rem;
+}
+
+.rowStat {
+  font-size: 0.67rem;
+  color: #555;
+  font-family: monospace;
+  margin-bottom: 0.55rem;
+  padding-left: 50px;
+}
+
+/* ─── Toggle ─── */
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input { display: none; }
+
+.toggleSlider {
+  width: 36px;
+  height: 20px;
+  background: #c0392b;
+  border-radius: 10px;
+  flex-shrink: 0;
+  position: relative;
+  transition: background 0.2s;
+}
+
+.toggleSlider::after {
+  content: '';
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  background: #fff;
+  border-radius: 50%;
+  top: 3px;
+  left: 3px;
+  transition: transform 0.2s;
+}
+
+.toggle input:checked + .toggleSlider               { background: #76b900; }
+.toggle input:checked + .toggleSlider::after        { transform: translateX(16px); }
+
+.toggleLabel {
+  font-size: 0.75rem;
+  color: #bbb;
+}
+
+.faultNote {
+  font-size: 0.7rem;
+  color: #f5a623;
+  margin-top: 0.5rem;
+  line-height: 1.4;
+  padding: 6px 8px;
+  background: #1a1000;
+  border-radius: 5px;
+  border: 1px solid #7a5500;
+}
+
+/* ─── Rack detail ─── */
+.rackDetail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rackDetailRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.73rem;
+}
+
+.rackDetailRow span  { color: #555; }
+.rackDetailRow strong { color: #ccc; font-weight: 600; font-family: monospace; }

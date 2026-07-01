@@ -45,6 +45,12 @@ export default function Header({ view = 'analyzer', onViewChange }) {
         >
           Thermal Viewer
         </button>
+        <button
+          className={`${styles.tab} ${view === 'simulation' ? styles.activeTab : ''}`}
+          onClick={() => onViewChange?.('simulation')}
+        >
+          ⚡ Simulation
+        </button>
       </nav>
 
       <div className={styles.status}>

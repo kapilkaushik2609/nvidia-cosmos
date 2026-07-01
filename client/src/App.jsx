@@ -3,12 +3,13 @@ import Header from './components/Header';
 import ImageInput from './components/ImageInput';
 import ResultPanel from './components/ResultPanel';
 import ThermalViewer from './components/ThermalViewer';
+import SimulationPanel from './components/SimulationPanel';
 import styles from './App.module.css';
 
 const DEFAULT_PROMPT = 'Describe what you see in this image in detail.';
 
 export default function App() {
-  const [view,        setView]        = useState('analyzer'); // 'analyzer' | 'thermal'
+  const [view,        setView]        = useState('analyzer'); // 'analyzer' | 'thermal' | 'simulation'
   const [image,       setImage]       = useState(null);
   const [prompt,      setPrompt]      = useState(DEFAULT_PROMPT);
   const [result,      setResult]      = useState('');
@@ -76,6 +77,8 @@ export default function App() {
 
       {view === 'thermal' ? (
         <ThermalViewer />
+      ) : view === 'simulation' ? (
+        <SimulationPanel />
       ) : (
         <main className={styles.main}>
           <div className={styles.col}>
