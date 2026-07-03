@@ -145,11 +145,17 @@ export default function SimulationPanel(){
   const[hovered,setHovered]=useState(null);
   const[scenario,setScenario]=useState(0);
 
-  // Cosmos full analysis
-  const[cosmosResult,setCosmosResult]=useState('');
-  const[cosmosLoading,setCosmosLoading]=useState(false);
-  const[cosmosError,setCosmosError]=useState('');
-  const[usedImage,setUsedImage]=useState(false);
+  // Cosmos full analysis — compliance mode
+  const[compResult,setCompResult]=useState('');
+  const[compLoading,setCompLoading]=useState(false);
+  const[compError,setCompError]=useState('');
+  const[compUsedImage,setCompUsedImage]=useState(false);
+
+  // Cosmos full analysis — physics/CFD mode
+  const[physResult,setPhysResult]=useState('');
+  const[physLoading,setPhysLoading]=useState(false);
+  const[physError,setPhysError]=useState('');
+  const[physUsedImage,setPhysUsedImage]=useState(false);
 
   // Cosmos live prediction mode
   const[cosmosMode,setCosmosMode]=useState(false);
@@ -195,25 +201,36 @@ export default function SimulationPanel(){
   // Clear risk map when mode turned off
   useEffect(()=>{ if(!cosmosMode){setCosmosRisk(null);abortRef.current?.abort();} },[cosmosMode]);
 
-  const askCosmos=async()=>{
-    setCosmosLoading(true);setCosmosResult('');setCosmosError('');setUsedImage(false);
+  const buildSimPayload=(mode)=>{
+    const rowStats=[1,2,3].map(row=>{
+      const rr=sim.racks.filter(r=>r.row===row);
+      return{row,count:rr.length,avgTemp:rr.reduce((s,r)=>s+r.temp_c,0)/rr.length,violations:rr.filter(r=>!r.ashrae_rec).length};
+    });
+    const topRisks=[...sim.racks].sort((a,b)=>b.temp_c-a.temp_c).slice(0,8);
+    const scenarioLabel=scenario>=0?SCENARIOS[scenario]?.label:'Custom';
+    return{mode,scenario:scenarioLabel,totalKW:sim.totalKW,facilKW:sim.facilKW,pue:sim.pue,maxTemp:sim.maxTemp,violations:sim.violations,critical:sim.critical,globalLoad,coolingOk,rowStats,topRisks};
+  };
+
+  const askCompliance=async()=>{
+    setCompLoading(true);setCompResult('');setCompError('');setCompUsedImage(false);
     try{
-      const rowStats=[1,2,3].map(row=>{
-        const rr=sim.racks.filter(r=>r.row===row);
-        return{row,count:rr.length,avgTemp:rr.reduce((s,r)=>s+r.temp_c,0)/rr.length,violations:rr.filter(r=>!r.ashrae_rec).length};
-      });
-      const topRisks=[...sim.racks].sort((a,b)=>b.temp_c-a.temp_c).slice(0,8);
-      const scenarioLabel=scenario>=0?SCENARIOS[scenario]?.label:'Custom';
-      const res=await fetch('/api/analyze-simulation',{
-        method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({scenario:scenarioLabel,totalKW:sim.totalKW,facilKW:sim.facilKW,pue:sim.pue,maxTemp:sim.maxTemp,violations:sim.violations,critical:sim.critical,globalLoad,coolingOk,rowStats,topRisks}),
-      });
+      const res=await fetch('/api/analyze-simulation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(buildSimPayload('compliance'))});
       const data=await res.json();
       if(!res.ok) throw new Error(data.error||`HTTP ${res.status}`);
-      setCosmosResult(data.result);
-      setUsedImage(!!data.used_image);
-    }catch(e){setCosmosError(e.message);}
-    finally{setCosmosLoading(false);}
+      setCompResult(data.result);setCompUsedImage(!!data.used_image);
+    }catch(e){setCompError(e.message);}
+    finally{setCompLoading(false);}
+  };
+
+  const askPhysics=async()=>{
+    setPhysLoading(true);setPhysResult('');setPhysError('');setPhysUsedImage(false);
+    try{
+      const res=await fetch('/api/analyze-simulation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(buildSimPayload('physics'))});
+      const data=await res.json();
+      if(!res.ok) throw new Error(data.error||`HTTP ${res.status}`);
+      setPhysResult(data.result);setPhysUsedImage(!!data.used_image);
+    }catch(e){setPhysError(e.message);}
+    finally{setPhysLoading(false);}
   };
 
   return(
@@ -269,11 +286,18 @@ export default function SimulationPanel(){
           </div>
         </div>
 
-        {(cosmosResult||cosmosLoading||cosmosError)&&(
-          <div className={`${styles.cosmosResult} ${cosmosError?styles.cosmosError:''}`}>
-            {cosmosLoading&&<div style={{color:'#76b900',textAlign:'center'}}>⏳ Cosmos is analyzing the thermal scenario…</div>}
-            {cosmosError&&<div>❌ {cosmosError}</div>}
-            {cosmosResult&&<><div className={styles.cosmosResultHeader}>🔮 Cosmos3-Nano Analysis {usedImage?'(thermal image + data)':'(scenario data)'}</div>{cosmosResult}</>}
+        {(compResult||compLoading||compError)&&(
+          <div className={`${styles.cosmosResult} ${compError?styles.cosmosError:''}`}>
+            {compLoading&&<div style={{color:'#76b900',textAlign:'center'}}>⏳ Cosmos running compliance assessment…</div>}
+            {compError&&<div>❌ Compliance: {compError}</div>}
+            {compResult&&<><div className={styles.cosmosResultHeader}>📋 ASHRAE GL-14 / ASME V&amp;V 20 Compliance Report {compUsedImage?'(thermal image + data)':'(scenario data)'}</div>{compResult}</>}
+          </div>
+        )}
+        {(physResult||physLoading||physError)&&(
+          <div className={`${styles.cosmosResult} ${physError?styles.cosmosError:''}`}>
+            {physLoading&&<div style={{color:'#76b900',textAlign:'center'}}>⏳ Cosmos running physics/CFD analysis…</div>}
+            {physError&&<div>❌ Physics: {physError}</div>}
+            {physResult&&<><div className={styles.cosmosResultHeader}>⚙️ Physics / CFD Analysis {physUsedImage?'(thermal image + data)':'(scenario data)'}</div>{physResult}</>}
           </div>
         )}
       </div>
@@ -295,12 +319,22 @@ export default function SimulationPanel(){
           {cosmosThinking&&<div className={styles.thinkingNote}>⏳ Cosmos is reading the thermal state…</div>}
         </div>
 
-        {/* Ask full analysis */}
+        {/* Compliance Analysis */}
         <div className={styles.section}>
-          <button className={`${styles.cosmosBtn} ${cosmosLoading?styles.cosmosBtnLoading:''}`} onClick={askCosmos} disabled={cosmosLoading}>
-            {cosmosLoading?'⏳ Asking Cosmos AI…':'Ask Cosmos AI — Full Analysis'}
+          <div className={styles.sectionTitle}>📋 Compliance Analysis</div>
+          <button className={`${styles.cosmosBtn} ${compLoading?styles.cosmosBtnLoading:''}`} onClick={askCompliance} disabled={compLoading||physLoading}>
+            {compLoading?'⏳ Running compliance check…':'Run Compliance Check'}
           </button>
-          <div className={styles.imageNote}>Sends scenario + real thermal image for deep analysis</div>
+          <div className={styles.imageNote}>ASHRAE GL-14 (3-level temp measurement) + ASME V&amp;V 20 — violation report &amp; corrective actions</div>
+        </div>
+
+        {/* Physics / CFD Analysis */}
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>⚙️ Physics / CFD Analysis</div>
+          <button className={`${styles.cosmosBtn} ${styles.cosmosBtnPhysics} ${physLoading?styles.cosmosBtnLoading:''}`} onClick={askPhysics} disabled={compLoading||physLoading}>
+            {physLoading?'⏳ Running physics analysis…':'Run Physics Analysis'}
+          </button>
+          <div className={styles.imageNote}>Thermal envelope, cooling headroom, power density, load-delta predictions</div>
         </div>
 
         <div className={styles.section}>

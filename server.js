@@ -374,12 +374,13 @@ URGENT_ACTION: [max 12 words — most critical action ops team should take now]`
   }
 });
 
-// Simulation AI analysis — sends real thermal image + scenario state to Cosmos
+// Simulation AI analysis — mode: 'general' | 'compliance' | 'physics'
 app.post("/api/analyze-simulation", async (req, res) => {
   try {
     await ensureVLLM();
 
     const {
+      mode = "general",
       scenario, totalKW, facilKW, pue, maxTemp,
       violations, critical, globalLoad, coolingOk, rowStats, topRisks,
     } = req.body;
@@ -392,32 +393,82 @@ app.post("/api/analyze-simulation", async (req, res) => {
       imageContent = { type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } };
     }
 
-    const prompt =
-`You are a datacenter thermal management AI analyzing the DFW datacenter (Vertex AI Systems, 70×40 ft, 52 racks, 3 rows, 375 kW IT design capacity).
+    // Shared data block used in all prompts
+    const dataBlock =
+`FACILITY: DFW Datacenter — Vertex AI Systems, 70x40 ft, 52 racks, 3 rows, 375 kW IT design capacity
+SCENARIO:  ${scenario || "Custom"}
+IT Load:   ${Number(totalKW).toFixed(0)} kW / 375 kW design (${(totalKW/375*100).toFixed(0)}%)
+Facility:  ${Number(facilKW).toFixed(0)} kW  |  PUE ${Number(pue).toFixed(2)}
+Load:      ${Math.round(globalLoad*100)}% global rack utilisation
+Peak Temp: ${Number(maxTemp).toFixed(1)} deg C
+ASHRAE Recommended (27 deg C): ${violations}/52 racks exceed limit
+ASHRAE Allowable  (32 deg C): ${critical}/52 racks at or above critical threshold
+Cooling:   ${coolingOk ? "Normal — N+1 CRAC units online" : "FAULT — 50% cooling capacity (one CRAC offline)"}
 
-CURRENT SIMULATION SCENARIO: ${scenario}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-IT Load:           ${Number(totalKW).toFixed(0)} kW / 375 kW design (${(totalKW/375*100).toFixed(0)}%)
-Facility Power:    ${Number(facilKW).toFixed(0)} kW  |  PUE ${Number(pue).toFixed(2)}
-Global Rack Load:  ${Math.round(globalLoad*100)}%
-Peak Rack Temp:    ${Number(maxTemp).toFixed(1)}°C
-ASHRAE Rec (27°C): ${violations}/52 racks exceed recommended
-ASHRAE Allow (32°C): ${critical}/52 racks at critical
-Cooling System:    ${coolingOk ? "Normal (N+1 online)" : "⚠ FAULT — 50% capacity"}
+ROW BREAKDOWN:
+${(rowStats||[]).map(r=>`  Row ${r.row}: avg ${Number(r.avgTemp).toFixed(1)} deg C | ${r.violations}/${r.count} racks exceed 27 deg C`).join("\n")}
 
-ROW TEMPERATURES:
-${(rowStats||[]).map(r=>`  Row ${r.row}: avg ${Number(r.avgTemp).toFixed(1)}°C, ${r.violations}/${r.count} racks exceed 27°C`).join("\n")}
+TOP AT-RISK RACKS (hottest):
+${(topRisks||[]).slice(0,6).map((r,i)=>`  ${i+1}. ${r.rack_id} (Row ${r.row}): ${Number(r.temp_c).toFixed(1)} deg C  ${Number(r.power_kw).toFixed(1)} kW`).join("\n")}
+${imageContent ? "\nThe attached image is the real thermal baseline map of this datacenter." : ""}`;
 
-TOP AT-RISK RACKS:
-${(topRisks||[]).slice(0,5).map((r,i)=>`  ${i+1}. ${r.rack_id} (Row ${r.row}): ${Number(r.temp_c).toFixed(1)}°C, ${Number(r.power_kw).toFixed(1)} kW`).join("\n")}
-${imageContent ? "\nThe attached image is the actual thermal baseline map of this datacenter." : ""}
+    let prompt;
+    let max_tokens = 1500;
 
-Please provide a concise analysis:
+    if (mode === "compliance") {
+      prompt =
+`You are a datacenter facility operator responsible for regulatory compliance reporting to external bodies.
+
+This facility must meet:
+  - ASHRAE Guideline 14: Temperature measured at THREE heights per cabinet:
+      Bottom (6 in / 15 cm from floor)   — cold aisle inlet air, most critical measurement
+      Middle (36 in / 91 cm from floor)  — mid-rack compute zone
+      Top    (66 in / 168 cm from floor) — exhaust air, secondary measurement
+    ASHRAE GL-14 thresholds: Recommended 18-27 deg C | Allowable max 32 deg C
+  - ASME V&V 20: Verification and Validation of Computational Fluid Dynamics and Heat Transfer Simulations
+    (requires thermal models be validated against measured physical data with documented uncertainty bounds)
+
+${dataBlock}
+
+Provide a structured compliance assessment:
+1. COMPLIANCE STATUS — State clearly: COMPLIANT or NON-COMPLIANT. Which standard is breached?
+2. VIOLATION REPORT — For each violating row or zone: location, estimated temperature at each of the 3 ASHRAE GL-14 measurement heights (bottom/middle/top), which limit is breached, and severity level.
+3. REPORTABLE INCIDENTS — Which violations must be formally reported and to whom? At what threshold does this become a mandatory disclosure?
+4. CORRECTIVE ACTIONS — Specific steps to restore compliance, ordered by urgency (immediate / within 24h / within 1 week).
+5. ASME V&V 20 GAP — Are there discrepancies between the formula-based simulation and the thermal image baseline that require documented validation under ASME V&V 20?
+6. COMPLIANCE RISK RATING — LOW / MEDIUM / HIGH / CRITICAL with a one-sentence justification.`;
+
+    } else if (mode === "physics") {
+      prompt =
+`You are a datacenter thermal engineer with deep expertise in thermodynamics, computational fluid dynamics (CFD), heat transfer, and building management systems.
+
+This facility uses hot-aisle/cold-aisle containment with N+1 precision CRAC cooling.
+Physics model: idle power 4.0 kW/rack, peak 18.0 kW/rack, thermal coefficient 0.969 deg C/kW, ambient supply 18 deg C.
+
+${dataBlock}
+
+Provide a physics-based thermal engineering analysis:
+1. THERMAL ENVELOPE — Current operating margin from thermal design limit. Which racks are approaching their design envelope? Express as percentage of headroom remaining.
+2. POWER DENSITY ANALYSIS — Flag zones with dangerous power density (kW per rack footprint). Identify any thermal runaway risk zones where adjacent rack heat load compounds.
+3. AIRFLOW ASSESSMENT — Based on the thermal image baseline and load distribution, identify likely hot-aisle/cold-aisle mixing issues, bypass airflow paths, or dead zones with poor convective cooling.
+4. COOLING HEADROOM — Quantify remaining cooling capacity in kW. At what IT load percentage does the cooling system reach saturation? What is the thermal cascade failure threshold under current CRAC state?
+5. OPERATING ENVELOPE — State the min/max safe power envelope per rack and total facility under current cooling conditions. What is the absolute ceiling before forced shutdown is required?
+6. LOAD DELTA PREDICTION — If IT load increases from current by +10% / +20% / +30%, predict the temperature delta (deg C) per row and identify which row breaches the allowable limit first.`;
+
+    } else {
+      // General / legacy mode
+      prompt =
+`You are a datacenter thermal management AI analyzing the DFW datacenter (Vertex AI Systems, 70x40 ft, 52 racks, 3 rows, 375 kW IT design capacity).
+
+${dataBlock}
+
+Provide a concise analysis:
 1. RISK ASSESSMENT — What are the critical thermal risks in this scenario?
 2. HOT SPOT PREDICTION — Which zones or racks are most likely to develop dangerous hot spots, and why?
 3. COOLING HEADROOM — How much headroom does the cooling system have before failure?
 4. LOAD REDISTRIBUTION — Which racks should be throttled first to restore thermal balance?
 5. TOP 3 ACTIONS — Specific steps the operations team should take right now.`;
+    }
 
     const content = imageContent
       ? [imageContent, { type: "text", text: prompt }]
@@ -426,7 +477,7 @@ Please provide a concise analysis:
     const payload = {
       model: MODEL,
       messages: [{ role: "user", content }],
-      max_tokens: 1500,
+      max_tokens,
     };
 
     const upstream = await fetch(`${VLLM_URL}/v1/chat/completions`, {
@@ -444,6 +495,7 @@ Please provide a concise analysis:
       result: data.choices?.[0]?.message?.content ?? "",
       usage: data.usage ?? {},
       used_image: !!imageContent,
+      mode,
     });
   } catch (err) {
     console.error("[analyze-simulation]", err.message);

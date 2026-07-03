@@ -318,6 +318,14 @@
 .cosmosBtn:hover:not(:disabled) { background: linear-gradient(135deg,#234400,#112200); box-shadow: 0 0 12px #76b90044; }
 .cosmosBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 .cosmosBtnLoading { animation: pulse 1.2s ease-in-out infinite; }
+
+/* Physics button — blue accent instead of green */
+.cosmosBtnPhysics {
+  background: linear-gradient(135deg, #001833 0%, #000d1a 100%);
+  border-color: #1a6aaa;
+  color: #60b8ff;
+}
+.cosmosBtnPhysics:hover:not(:disabled) { background: linear-gradient(135deg,#002244,#001122); box-shadow: 0 0 12px #1a6aaa44; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
 
 .cosmosResult {
