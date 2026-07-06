@@ -326,6 +326,21 @@
   color: #60b8ff;
 }
 .cosmosBtnPhysics:hover:not(:disabled) { background: linear-gradient(135deg,#002244,#001122); box-shadow: 0 0 12px #1a6aaa44; }
+
+/* Baseline status chip */
+.baselineChip {
+  font-size: 0.65rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid #333;
+  color: #888;
+  background: #111;
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+.baseline_loaded  { border-color: #1a6a1a; color: #76b900; background: #0a1a00; }
+.baseline_loading { border-color: #333;    color: #888;    background: #111; }
+.baseline_error   { border-color: #552222; color: #aa4444; background: #1a0000; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
 
 .cosmosResult {

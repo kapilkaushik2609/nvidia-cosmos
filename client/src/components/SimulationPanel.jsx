@@ -54,7 +54,10 @@ function tempColor(t){
   return 'red';
 }
 
-function simulate(rowOverrides,globalLoad,coolingOk){
+// baseline: Map of rack_id → { temp_c, power_kw } from thermal_overlay.json
+// When loaded: temp = baseline_temp + (simulated_power - baseline_power) × physics_delta
+// When null:   falls back to pure formula from AMBIENT_C
+function simulate(rowOverrides,globalLoad,coolingOk,baseline){
   const coolDerate=coolingOk?1.0:2.0;
   const rackLoads=RACK_LAYOUT.map(r=>{
     const load=Math.max(0,Math.min(1,rowOverrides[r.row]??globalLoad));
@@ -64,7 +67,16 @@ function simulate(rowOverrides,globalLoad,coolingOk){
   const overloadFactor=Math.max(1,totalKW/DESIGN_KW);
   const results=rackLoads.map(r=>{
     const rf=ROW_FACTORS[r.row]??1.0;
-    const temp=AMBIENT_C+(r.power_kw-IDLE_KW)*TEMP_PER_KW*rf*overloadFactor*coolDerate;
+    const base=baseline?.[r.rack_id];
+    let temp;
+    if(base){
+      // Real sensor baseline (thermal_overlay.json) + physics delta from that point
+      const powerDelta=r.power_kw-base.power_kw;
+      temp=base.temp_c+(powerDelta*TEMP_PER_KW*rf*overloadFactor*coolDerate);
+    } else {
+      // Pure formula fallback — no baseline loaded yet
+      temp=AMBIENT_C+(r.power_kw-IDLE_KW)*TEMP_PER_KW*rf*overloadFactor*coolDerate;
+    }
     return{...r,temp_c:temp,ashrae_rec:temp<=ASHRAE_REC,ashrae_allow:temp<=ASHRAE_ALLOW};
   });
   const maxTemp=Math.max(...results.map(r=>r.temp_c));
@@ -157,6 +169,24 @@ export default function SimulationPanel(){
   const[physError,setPhysError]=useState('');
   const[physUsedImage,setPhysUsedImage]=useState(false);
 
+  // Real sensor baseline — loaded once from /thermal/thermal_overlay.json
+  const[baseline,setBaseline]=useState(null);        // Map: rack_id → {temp_c, power_kw}
+  const[baselineStatus,setBaselineStatus]=useState('loading'); // 'loading'|'loaded'|'error'
+
+  useEffect(()=>{
+    fetch('/thermal/thermal_overlay.json')
+      .then(r=>r.json())
+      .then(data=>{
+        const map={};
+        (data.component_temperatures||[]).forEach(c=>{
+          if(c.type==='rack') map[c.id]={temp_c:c.temperature_c,power_kw:c.power_kw,severity:c.severity};
+        });
+        setBaseline(map);
+        setBaselineStatus('loaded');
+      })
+      .catch(()=>setBaselineStatus('error'));
+  },[]);
+
   // Cosmos live prediction mode
   const[cosmosMode,setCosmosMode]=useState(false);
   const[cosmosRisk,setCosmosRisk]=useState(null);   // {row1,row2,row3,maxTemp,hotspot,action}
@@ -165,7 +195,7 @@ export default function SimulationPanel(){
 
   const applyScenario=idx=>{setScenario(idx);setGlobalLoad(SCENARIOS[idx].globalLoad);setRowOverrides({});setCoolingOk(SCENARIOS[idx].coolingOk);};
   const getRowLoad=row=>rowOverrides[row]??globalLoad;
-  const sim=simulate(rowOverrides,globalLoad,coolingOk);
+  const sim=simulate(rowOverrides,globalLoad,coolingOk,baseline);
   const hoveredRack=sim.racks.find(r=>r.rack_id===hovered);
 
   // Auto-predict: 1.5s after slider stops, if Cosmos mode is on
@@ -208,7 +238,17 @@ export default function SimulationPanel(){
     });
     const topRisks=[...sim.racks].sort((a,b)=>b.temp_c-a.temp_c).slice(0,8);
     const scenarioLabel=scenario>=0?SCENARIOS[scenario]?.label:'Custom';
-    return{mode,scenario:scenarioLabel,totalKW:sim.totalKW,facilKW:sim.facilKW,pue:sim.pue,maxTemp:sim.maxTemp,violations:sim.violations,critical:sim.critical,globalLoad,coolingOk,rowStats,topRisks};
+    // Include real baseline context when loaded so Cosmos can compare sim vs real
+    const baselineCtx=baseline ? {
+      hasRealBaseline:true,
+      baselineNote:'Temperatures are physics deltas from real thermal_overlay.json baseline (measured at 17.5 kW/rack)',
+      baselineRowAvg:[1,2,3].map(row=>{
+        const ids=RACK_LAYOUT.filter(r=>r.row===row).map(r=>r.rack_id);
+        const vals=ids.map(id=>baseline[id]?.temp_c).filter(Boolean);
+        return{row,avgBaseline_c:vals.length?(vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(1):null};
+      }),
+    } : {hasRealBaseline:false,baselineNote:'Formula-only — thermal_overlay.json not loaded'};
+    return{mode,scenario:scenarioLabel,totalKW:sim.totalKW,facilKW:sim.facilKW,pue:sim.pue,maxTemp:sim.maxTemp,violations:sim.violations,critical:sim.critical,globalLoad,coolingOk,rowStats,topRisks,...baselineCtx};
   };
 
   const askCompliance=async()=>{
@@ -238,6 +278,9 @@ export default function SimulationPanel(){
       <div className={styles.left}>
         <div className={styles.floorHeader}>
           <span className={styles.floorTitle}>Datacenter Floorplan — 70 × 40 ft · 52 Racks</span>
+          <span className={`${styles.baselineChip} ${styles['baseline_'+baselineStatus]}`}>
+            {baselineStatus==='loaded'?'📡 Sensor baseline':baselineStatus==='loading'?'⏳ Loading baseline…':'📐 Formula only'}
+          </span>
           {cosmosThinking&&<span className={styles.thinkingChip}>🔮 Cosmos predicting…</span>}
           {hoveredRack&&!cosmosThinking&&<span className={styles.hoverChip}>{hoveredRack.rack_id} · {hoveredRack.temp_c.toFixed(1)}°C · {hoveredRack.power_kw.toFixed(1)} kW {!hoveredRack.ashrae_allow?'⛔ ABOVE ALLOWABLE':!hoveredRack.ashrae_rec?'⚠ above rec':'✓ OK'}</span>}
         </div>
