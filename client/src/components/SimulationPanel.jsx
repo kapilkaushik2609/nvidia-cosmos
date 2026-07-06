@@ -31,92 +31,40 @@ const RACK_LAYOUT = [
   {rack_id:"RACK-052",row:3,position_ft:{x:49,y:30}},
 ];
 
-// Normalise the 2D-layout API response into { rack_id, row, position_ft:{x,y} }[]
-// Groups racks by their API row number and assigns display-safe SVG grid positions.
-// The API x/y coordinates may be in feet, tiles, or other units — we ignore the raw
-// values and instead sort each row by x, then space them evenly in the SVG grid.
-function normaliseLayout(data){
-  // Log the top-level keys so we can debug the response shape in the browser console
-  console.log('[layout] response keys:', data && typeof data==='object' ? Object.keys(data) : typeof data);
-
-  // Try every plausible nesting level — API may wrap in data/result/etc.
-  const candidates=[
-    data,
-    data?.racks,
-    data?.layout,
-    data?.components,
-    data?.data,
-    data?.data?.racks,
-    data?.result,
-    data?.result?.racks,
-    data?.allocation?.racks,
-  ];
-
-  let items=[];
-  for(const c of candidates){
-    if(!c) continue;
-    const arr=Array.isArray(c)?c:null;
-    if(arr && arr.length>0){
-      // Prefer arrays whose items look like racks
-      const rackLike=arr.filter(r=>r && (r.id||r.rack_id||r.rackId));
-      if(rackLike.length>0){ items=arr; break; }
-    }
-  }
-
-  // Rows variant: { rows: [{row, racks:[...]}] }
-  if(!items.length && Array.isArray(data?.rows)){
-    data.rows.forEach(r=>{
-      const rowNum=r.row??r.rowNumber??1;
-      (r.racks||r.components||[]).forEach(rk=>items.push({...rk,row:rowNum}));
-    });
-  }
-
-  // Keep only items that have an id (anything without id is not a rack)
-  const racks=items.filter(r=>r && (r.id||r.rack_id||r.rackId));
-  if(!racks.length){
-    console.warn('[layout] no rack items found. First 300 chars:', JSON.stringify(data).slice(0,300));
-    return null;
-  }
-  console.log(`[layout] ${racks.length} racks found`);
-
-  // Group by row number (preserve API row assignments)
-  const byRow={};
-  racks.forEach(r=>{
-    const rowNum=Number(r.row??r.rowNumber??r.row_number??1);
-    if(!byRow[rowNum]) byRow[rowNum]=[];
-    byRow[rowNum].push(r);
-  });
-
-  // Assign each row a fixed y in SVG room-feet coordinates (must fit within 40ft room)
-  const rowKeys=Object.keys(byRow).map(Number).sort((a,b)=>a-b);
-  const ROW_Y=[12,20,30,38]; // y positions for up to 4 rows
-  const layout=[];
-  rowKeys.forEach((rowNum,ri)=>{
-    const y=ROW_Y[ri]??12+ri*8;
-    // Sort within row by api x coordinate so left-to-right order is preserved
-    const sorted=[...byRow[rowNum]].sort((a,b)=>(a.x??a.tile_x??0)-(b.x??b.tile_x??0));
-    sorted.forEach((r,i)=>{
-      const id=r.rack_id??r.id??r.rackId??'';
-      if(!id) return;
-      layout.push({rack_id:id, row:rowNum, position_ft:{x:17+i*2, y}});
-    });
-  });
-  return layout;
+// Parse 2D layout API response — returns config spec, not individual rack positions.
+// Response: { success, data: { configuration: { rack_specs: { count, power_per_rack_kw },
+//             num_rows, it_load_kw } } }
+function parseLayoutConfig(data){
+  const payload=data?.data??data;
+  const cfg=payload?.configuration??payload;
+  if(!cfg?.rack_specs?.count) return null;
+  const specs=cfg.rack_specs;
+  return {
+    count:    specs.count,
+    numRows:  cfg.num_rows??3,
+    peakKW:   specs.power_per_rack_kw??PEAK_KW,
+    designKW: cfg.it_load_kw??DESIGN_KW,
+    // Estimate idle as ~22% of peak (typical server idle ratio)
+    idleKW:   specs.idle_kw_per_rack??(Math.round(specs.power_per_rack_kw*0.22*10)/10)||IDLE_KW,
+  };
 }
 
-// Fallback: distribute thermal-data racks evenly across 3 rows when 2D layout API unavailable
-function buildLayoutFromThermal(rackItems){
+// Build display layout from thermal component data (preserves real rack IDs for baseline matching)
+// numRows from the layout config controls row distribution; falls back to 3 rows
+function buildLayoutFromThermal(rackItems, numRows=3){
   const sorted=[...rackItems].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
   const n=sorted.length;
-  const r1=Math.ceil(n/3), r2=Math.ceil((n-r1)/2), r3=n-r1-r2;
-  const rowCounts=[r1,r2,r3], yPositions=[12,20,30];
+  const ROW_Y=[12,20,30,38];
+  // Distribute as evenly as possible across numRows rows
+  const perRow=Math.ceil(n/numRows);
   const layout=[]; let idx=0;
-  for(let row=0;row<3;row++){
-    for(let i=0;i<rowCounts[row];i++){
-      if(idx>=n) break;
-      layout.push({rack_id:sorted[idx].id, row:row+1, position_ft:{x:17+i*2, y:yPositions[row]}});
+  for(let row=0;row<numRows;row++){
+    const rowCount=Math.min(perRow, n-idx);
+    for(let i=0;i<rowCount;i++){
+      layout.push({rack_id:sorted[idx].id, row:row+1, position_ft:{x:17+i*2, y:ROW_Y[row]??12}});
       idx++;
     }
+    if(idx>=n) break;
   }
   return layout;
 }
@@ -308,15 +256,22 @@ export default function SimulationPanel(){
       setBaselineStatus('loaded');
     };
 
-    // 1. Fetch 2D layout first — this drives rack positions + IDs on the floorplan
+    // 1. Fetch 2D layout config first — drives rack count, power specs, row count
+    //    API returns: { success, data: { configuration: { rack_specs:{count,power_per_rack_kw}, num_rows, it_load_kw } } }
+    let layoutNumRows = 3; // shared with thermal fallback below
     const layoutPromise = fetch(`/api/oasis/allocation/${selectedAlloc}/layout`)
       .then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(data=>{
-        const layout=normaliseLayout(data);
-        if(layout&&layout.length>0){ setRackLayout(layout); return true; }
-        return false;
+        console.log('[layout] raw response:', JSON.stringify(data).slice(0,400));
+        const cfg = parseLayoutConfig(data);
+        if(!cfg){ console.warn('[layout] parseLayoutConfig returned null'); return false; }
+        console.log(`[layout] parsed: count=${cfg.count} rows=${cfg.numRows} peakKW=${cfg.peakKW} designKW=${cfg.designKW}`);
+        layoutNumRows = cfg.numRows;
+        // Set sim options from layout config (overrides default constants)
+        setSimOpts({ idleKW: cfg.idleKW, peakKW: cfg.peakKW, designKW: cfg.designKW });
+        return cfg; // pass cfg to Promise.all handler
       })
-      .catch(()=>false); // layout API failed — will fall back after thermal loads
+      .catch(err=>{ console.warn('[layout] fetch failed:', err.message); return false; });
 
     // 2. Fetch thermal baseline (temperatures + power per rack)
     const thermalPromise = fetch(`/api/oasis/allocation/${selectedAlloc}/thermal`)
@@ -324,29 +279,15 @@ export default function SimulationPanel(){
       .then(loadThermal)
       .catch(()=>setBaselineStatus('error'));
 
-    // After both settle: if layout API failed, fall back to thermal-derived grid layout
-    Promise.all([layoutPromise, thermalPromise]).then(([layoutOk])=>{
-      if(!layoutOk && thermalRacks.length>0){
-        setRackLayout(buildLayoutFromThermal(thermalRacks));
+    // After both settle: build layout from thermal rack IDs (using numRows from layout config)
+    Promise.all([layoutPromise, thermalPromise]).then(([cfg])=>{
+      if(thermalRacks.length>0){
+        // Always build layout from thermal data so rack IDs match the baseline map
+        const rows = (cfg && cfg.numRows) ? cfg.numRows : layoutNumRows;
+        setRackLayout(buildLayoutFromThermal(thermalRacks, rows));
       }
       setAllocLoading(false);
     });
-
-    // 3. Fetch power-temp-summary for calibration factors
-    fetch(`/api/oasis/allocation/${selectedAlloc}/power-temp`)
-      .then(r=>r.json())
-      .then(data=>{
-        const cf=data.metadata?.calibration_factors||data.calibration_factors||{};
-        const as=data.allocation_stats||data.power?.allocation_stats||{};
-        if(cf.idle_kw_per_rack||cf.peak_kw_per_rack){
-          setSimOpts({
-            idleKW:  cf.idle_kw_per_rack  ?? IDLE_KW,
-            peakKW:  cf.peak_kw_per_rack  ?? PEAK_KW,
-            designKW:as.max_kw            ?? DESIGN_KW,
-          });
-        }
-      })
-      .catch(()=>{}); // silently ignore — keeps default constants
   },[selectedAlloc]);
 
   // Cosmos live prediction mode
