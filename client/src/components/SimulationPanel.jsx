@@ -185,8 +185,14 @@ export default function SimulationPanel(){
     fetch('/api/oasis/allocations/CHI1-CHI3')
       .then(r=>r.json())
       .then(data=>{
-        // API may return array directly or { allocations:[...] } or { data:[...] }
-        const list=Array.isArray(data)?data:(data.allocations||data.data||[]);
+        // API returns array of { allocationId, customerName, status } objects
+        const raw=Array.isArray(data)?data:(data.allocations||data.data||[]);
+        // Normalise to objects with at minimum { allocationId, label }
+        const list=raw.map(item=>
+          typeof item==='string'
+            ? { allocationId: item, label: item }
+            : { allocationId: item.allocationId, label: item.customerName ? `${item.allocationId} — ${item.customerName}` : item.allocationId }
+        ).filter(item=>item.allocationId);
         if(list.length) setAllocations(list);
       })
       .catch(()=>{}); // silently ignore — selector just won't show other options
@@ -402,8 +408,12 @@ export default function SimulationPanel(){
             disabled={allocLoading}
           >
             {/* Always show current as an option even if list didn't load */}
-            {[...new Set([DEFAULT_ALLOC,...allocations])].map(id=>(
-              <option key={id} value={id}>{id}</option>
+            {/* Default option always present */}
+            {!allocations.find(a=>a.allocationId===DEFAULT_ALLOC) && (
+              <option key={DEFAULT_ALLOC} value={DEFAULT_ALLOC}>{DEFAULT_ALLOC}</option>
+            )}
+            {allocations.map(a=>(
+              <option key={a.allocationId} value={a.allocationId}>{a.label}</option>
             ))}
           </select>
           {allocLoading&&<div className={styles.imageNote}>⏳ Loading allocation data…</div>}
