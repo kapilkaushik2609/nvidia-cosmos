@@ -45,7 +45,7 @@ function parseLayoutConfig(data){
     peakKW:   specs.power_per_rack_kw??PEAK_KW,
     designKW: cfg.it_load_kw??DESIGN_KW,
     // Estimate idle as ~22% of peak (typical server idle ratio)
-    idleKW:   specs.idle_kw_per_rack??(Math.round(specs.power_per_rack_kw*0.22*10)/10)||IDLE_KW,
+    idleKW:   specs.idle_kw_per_rack ?? (Math.round(specs.power_per_rack_kw*0.22*10)/10 || IDLE_KW),
   };
 }
 
