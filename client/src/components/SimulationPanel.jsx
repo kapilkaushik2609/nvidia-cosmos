@@ -31,9 +31,35 @@ const RACK_LAYOUT = [
   {rack_id:"RACK-052",row:3,position_ft:{x:49,y:30}},
 ];
 
-// Build a rack layout grid from live API data (component_temperatures racks)
-// Distributes racks across 3 rows in the same SVG coordinate space as the hardcoded layout
-function buildLayout(rackItems){
+// Normalise the 2D-layout API response into { rack_id, row, position_ft:{x,y} }[]
+// The API may return several shapes — handles all known variants.
+function normaliseLayout(data){
+  // Shape A: { racks: [{id|rack_id|rackId, row, x|position.x, y|position.y}] }
+  // Shape B: { rows: [{row|rowNumber, racks:[{id|rack_id, x, y}]}] }
+  let items=[];
+  if(Array.isArray(data)) items=data;
+  else if(Array.isArray(data.racks)) items=data.racks;
+  else if(Array.isArray(data.layout)) items=data.layout;
+  else if(Array.isArray(data.rows)){
+    data.rows.forEach(r=>{
+      const rowNum=r.row??r.rowNumber??r.row_number??1;
+      (r.racks||r.components||[]).forEach(rk=>{
+        items.push({...rk, row:rowNum});
+      });
+    });
+  }
+  if(!items.length) return null;
+  return items.map(r=>{
+    const id=r.rack_id??r.id??r.rackId??r.name??'';
+    const row=r.row??r.rowNumber??r.row_number??1;
+    const x=r.x??r.position?.x??r.position_ft?.x??17;
+    const y=r.y??r.position?.y??r.position_ft?.y??12;
+    return{rack_id:id, row:Number(row), position_ft:{x:Number(x),y:Number(y)}};
+  }).filter(r=>r.rack_id);
+}
+
+// Fallback: distribute thermal-data racks evenly across 3 rows when 2D layout API unavailable
+function buildLayoutFromThermal(rackItems){
   const sorted=[...rackItems].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
   const n=sorted.length;
   const r1=Math.ceil(n/3), r2=Math.ceil((n-r1)/2), r3=n-r1-r2;
@@ -225,24 +251,42 @@ export default function SimulationPanel(){
     setBaselineStatus('loading');
     setAllocLoading(true);
 
+    // Holds thermal racks so layout fallback can use them
+    let thermalRacks=[];
+
     const loadThermal=(data)=>{
-      const racks=(data.component_temperatures||[]).filter(c=>c.type==='rack');
+      thermalRacks=(data.component_temperatures||[]).filter(c=>c.type==='rack');
       const map={};
-      racks.forEach(c=>{ map[c.id]={temp_c:c.temperature_c,power_kw:c.power_kw,severity:c.severity}; });
+      thermalRacks.forEach(c=>{ map[c.id]={temp_c:c.temperature_c,power_kw:c.power_kw,severity:c.severity}; });
       setBaseline(map);
       setBaselineStatus('loaded');
-      // Rebuild floorplan layout from this allocation's actual racks
-      if(racks.length>0) setRackLayout(buildLayout(racks));
     };
 
-    // Fetch thermal baseline from OASIS API
-    fetch(`/api/oasis/allocation/${selectedAlloc}/thermal`)
+    // 1. Fetch 2D layout first — this drives rack positions + IDs on the floorplan
+    const layoutPromise = fetch(`/api/oasis/allocation/${selectedAlloc}/layout`)
+      .then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(data=>{
+        const layout=normaliseLayout(data);
+        if(layout&&layout.length>0){ setRackLayout(layout); return true; }
+        return false;
+      })
+      .catch(()=>false); // layout API failed — will fall back after thermal loads
+
+    // 2. Fetch thermal baseline (temperatures + power per rack)
+    const thermalPromise = fetch(`/api/oasis/allocation/${selectedAlloc}/thermal`)
       .then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(loadThermal)
-      .catch(()=>setBaselineStatus('error'))
-      .finally(()=>setAllocLoading(false));
+      .catch(()=>setBaselineStatus('error'));
 
-    // Also fetch power-temp-summary for calibration factors
+    // After both settle: if layout API failed, fall back to thermal-derived grid layout
+    Promise.all([layoutPromise, thermalPromise]).then(([layoutOk])=>{
+      if(!layoutOk && thermalRacks.length>0){
+        setRackLayout(buildLayoutFromThermal(thermalRacks));
+      }
+      setAllocLoading(false);
+    });
+
+    // 3. Fetch power-temp-summary for calibration factors
     fetch(`/api/oasis/allocation/${selectedAlloc}/power-temp`)
       .then(r=>r.json())
       .then(data=>{

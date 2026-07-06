@@ -39,8 +39,8 @@ let startPromise = null;
 // Direct path inside the virtualenv — no shell activation needed
 const VLLM_BIN = "/home/block2/cosmos-reasoner/bin/vllm";
 // GPU strategy:
-//   TP2 mode  → both GPUs (0,1) — needs GPU 1 to be mostly free (Ollama must be stopped)
-//   TP1 mode  → GPU 0 only (A4000 15 GB, always idle) — works even while Ollama runs on GPU 1
+//   TP2 mode  -> both GPUs (0,1) — needs GPU 1 to be mostly free (Ollama must be stopped)
+//   TP1 mode  -> GPU 0 only (A4000 15 GB, always idle) — works even while Ollama runs on GPU 1
 //
 // Set COSMOS_TP=1 in the environment to force single-GPU mode, e.g.:
 //   COSMOS_TP=1 npm run dev
@@ -616,17 +616,29 @@ app.get("/api/oasis/allocation/:id/report", async (req, res) => {
     res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
   }
 });
+
+app.get("/api/oasis/allocation/:id/layout", async (req, res) => {
+  try {
+    const upstream = await fetch(
+      `${OASIS_API}/api/allocation/2d-layout/${req.params.id}`,
+    );
+    const data = await upstream.json();
+    res.status(upstream.status).json(data);
+  } catch (err) {
+    console.error("[oasis/layout]", err.message);
+    res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
+  }
+});
+
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
 });
 
 app.listen(PORT, () => {
-  console.log(`\n  Backend  → http://localhost:${PORT}`);
-  console.log(`  vLLM   → ${VLLM_URL}`);
-  console.log(`  OASIS  → ${OASIS_API}`);
-  console.log(
-    `  Mode     → on-demand (idle timeout: ${IDLE_TIMEOUT_MS / 60000} min)\n`,
-  );
+  console.log(`\n  Backend  -> http://localhost:${PORT}`);
+  console.log(`  vLLM   -> ${VLLM_URL}`);
+  console.log(`  OASIS  -> ${OASIS_API}`);
+  console.log(`  Mode     -> on-demand (idle timeout: ${IDLE_TIMEOUT_MS / 60000} min)\n`);
 });
 
 process.on("SIGINT", () => {
