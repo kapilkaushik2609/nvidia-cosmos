@@ -32,30 +32,54 @@ const RACK_LAYOUT = [
 ];
 
 // Normalise the 2D-layout API response into { rack_id, row, position_ft:{x,y} }[]
-// The API may return several shapes — handles all known variants.
+// Groups racks by their API row number and assigns display-safe SVG grid positions.
+// The API x/y coordinates may be in feet, tiles, or other units — we ignore the raw
+// values and instead sort each row by x, then space them evenly in the SVG grid.
 function normaliseLayout(data){
-  // Shape A: { racks: [{id|rack_id|rackId, row, x|position.x, y|position.y}] }
-  // Shape B: { rows: [{row|rowNumber, racks:[{id|rack_id, x, y}]}] }
+  // Extract the flat rack list from any known response shape
   let items=[];
-  if(Array.isArray(data)) items=data;
-  else if(Array.isArray(data.racks)) items=data.racks;
-  else if(Array.isArray(data.layout)) items=data.layout;
+  if(Array.isArray(data))                          items=data;
+  else if(Array.isArray(data.racks))               items=data.racks;
+  else if(Array.isArray(data.layout))              items=data.layout;
+  else if(Array.isArray(data.components))          items=data.components;
   else if(Array.isArray(data.rows)){
     data.rows.forEach(r=>{
       const rowNum=r.row??r.rowNumber??r.row_number??1;
-      (r.racks||r.components||[]).forEach(rk=>{
-        items.push({...rk, row:rowNum});
-      });
+      (r.racks||r.components||[]).forEach(rk=>items.push({...rk,row:rowNum}));
     });
   }
-  if(!items.length) return null;
-  return items.map(r=>{
-    const id=r.rack_id??r.id??r.rackId??r.name??'';
-    const row=r.row??r.rowNumber??r.row_number??1;
-    const x=r.x??r.position?.x??r.position_ft?.x??17;
-    const y=r.y??r.position?.y??r.position_ft?.y??12;
-    return{rack_id:id, row:Number(row), position_ft:{x:Number(x),y:Number(y)}};
-  }).filter(r=>r.rack_id);
+
+  // Keep only items that look like racks (have an id and a row number)
+  const racks=items.filter(r=>(r.id||r.rack_id||r.rackId) && (r.row!=null||r.rowNumber!=null||r.row_number!=null));
+  if(!racks.length){
+    console.warn('[layout] no rack items found in response', data);
+    return null;
+  }
+  console.log(`[layout] ${racks.length} racks from API`);
+
+  // Group by row number (preserve API row assignments)
+  const byRow={};
+  racks.forEach(r=>{
+    const rowNum=Number(r.row??r.rowNumber??r.row_number??1);
+    if(!byRow[rowNum]) byRow[rowNum]=[];
+    byRow[rowNum].push(r);
+  });
+
+  // Assign each row a fixed y in SVG room-feet coordinates (must fit within 40ft room)
+  const rowKeys=Object.keys(byRow).map(Number).sort((a,b)=>a-b);
+  const ROW_Y=[12,20,30,38]; // y positions for up to 4 rows
+  const layout=[];
+  rowKeys.forEach((rowNum,ri)=>{
+    const y=ROW_Y[ri]??12+ri*8;
+    // Sort within row by api x coordinate so left-to-right order is preserved
+    const sorted=[...byRow[rowNum]].sort((a,b)=>(a.x??a.tile_x??0)-(b.x??b.tile_x??0));
+    sorted.forEach((r,i)=>{
+      const id=r.rack_id??r.id??r.rackId??'';
+      if(!id) return;
+      layout.push({rack_id:id, row:rowNum, position_ft:{x:17+i*2, y}});
+    });
+  });
+  return layout;
 }
 
 // Fallback: distribute thermal-data racks evenly across 3 rows when 2D layout API unavailable
@@ -393,7 +417,7 @@ export default function SimulationPanel(){
     <div className={styles.wrap}>
       <div className={styles.left}>
         <div className={styles.floorHeader}>
-          <span className={styles.floorTitle}>Datacenter Floorplan — 70 × 40 ft · 52 Racks</span>
+          <span className={styles.floorTitle}>Datacenter Floorplan · {rackLayout.length} Racks</span>
           <span className={`${styles.baselineChip} ${styles['baseline_'+baselineStatus]}`}>
             {baselineStatus==='loaded'?'📡 Sensor baseline':baselineStatus==='loading'?'⏳ Loading baseline…':'📐 Formula only'}
           </span>
@@ -429,7 +453,7 @@ export default function SimulationPanel(){
         <div className={styles.metricsRow}>
           <div className={`${styles.metric} ${sim.totalKW>DESIGN_KW?styles.metricWarn:''}`}>
             <div className={styles.metricVal}>{sim.totalKW.toFixed(0)}<span className={styles.metricUnit}>kW</span></div>
-            <div className={styles.metricLabel}>IT Load / {DESIGN_KW} kW design</div>
+            <div className={styles.metricLabel}>IT Load / {simOpts.designKW??DESIGN_KW} kW design</div>
           </div>
           <div className={styles.metric}>
             <div className={styles.metricVal}>{sim.facilKW.toFixed(0)}<span className={styles.metricUnit}>kW</span></div>
