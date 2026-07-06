@@ -10,7 +10,9 @@ const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const VLLM_URL = process.env.VLLM_URL || "http://127.0.0.1:8001";
-// const ALLOC_BASE = process.env.ALLOC_BASE || __dirname; // replaced by OASIS API
+// ALLOC_BASE: only used for optional local thermal image overlay — falls back to empty string
+// so fs.existsSync checks fail gracefully when no local files are present.
+const ALLOC_BASE = process.env.ALLOC_BASE || '';
 const MODEL = process.env.MODEL || "nvidia/Cosmos3-Nano";
 const PORT = process.env.PORT || 7086;
 const OASIS_API = process.env.OASIS_API || "http://103.204.95.220:7040"; // OASIS backend
