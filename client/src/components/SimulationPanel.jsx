@@ -36,26 +36,48 @@ const RACK_LAYOUT = [
 // The API x/y coordinates may be in feet, tiles, or other units — we ignore the raw
 // values and instead sort each row by x, then space them evenly in the SVG grid.
 function normaliseLayout(data){
-  // Extract the flat rack list from any known response shape
+  // Log the top-level keys so we can debug the response shape in the browser console
+  console.log('[layout] response keys:', data && typeof data==='object' ? Object.keys(data) : typeof data);
+
+  // Try every plausible nesting level — API may wrap in data/result/etc.
+  const candidates=[
+    data,
+    data?.racks,
+    data?.layout,
+    data?.components,
+    data?.data,
+    data?.data?.racks,
+    data?.result,
+    data?.result?.racks,
+    data?.allocation?.racks,
+  ];
+
   let items=[];
-  if(Array.isArray(data))                          items=data;
-  else if(Array.isArray(data.racks))               items=data.racks;
-  else if(Array.isArray(data.layout))              items=data.layout;
-  else if(Array.isArray(data.components))          items=data.components;
-  else if(Array.isArray(data.rows)){
+  for(const c of candidates){
+    if(!c) continue;
+    const arr=Array.isArray(c)?c:null;
+    if(arr && arr.length>0){
+      // Prefer arrays whose items look like racks
+      const rackLike=arr.filter(r=>r && (r.id||r.rack_id||r.rackId));
+      if(rackLike.length>0){ items=arr; break; }
+    }
+  }
+
+  // Rows variant: { rows: [{row, racks:[...]}] }
+  if(!items.length && Array.isArray(data?.rows)){
     data.rows.forEach(r=>{
-      const rowNum=r.row??r.rowNumber??r.row_number??1;
+      const rowNum=r.row??r.rowNumber??1;
       (r.racks||r.components||[]).forEach(rk=>items.push({...rk,row:rowNum}));
     });
   }
 
-  // Keep only items that look like racks (have an id and a row number)
-  const racks=items.filter(r=>(r.id||r.rack_id||r.rackId) && (r.row!=null||r.rowNumber!=null||r.row_number!=null));
+  // Keep only items that have an id (anything without id is not a rack)
+  const racks=items.filter(r=>r && (r.id||r.rack_id||r.rackId));
   if(!racks.length){
-    console.warn('[layout] no rack items found in response', data);
+    console.warn('[layout] no rack items found. First 300 chars:', JSON.stringify(data).slice(0,300));
     return null;
   }
-  console.log(`[layout] ${racks.length} racks from API`);
+  console.log(`[layout] ${racks.length} racks found`);
 
   // Group by row number (preserve API row assignments)
   const byRow={};
