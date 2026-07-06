@@ -31,12 +31,11 @@ const RACK_LAYOUT = [
   {rack_id:"RACK-052",row:3,position_ft:{x:49,y:30}},
 ];
 
-// Parse 2D layout API response — returns config spec, not individual rack positions.
-// Response: { success, data: { configuration: { rack_specs: { count, power_per_rack_kw },
-//             num_rows, it_load_kw } } }
+// Extract simOpts from the configuration section of the layout API response.
+// Response: { success, data: { configuration: { rack_specs:{count,power_per_rack_kw}, num_rows, it_load_kw }, racks:[...] } }
 function parseLayoutConfig(data){
   const payload=data?.data??data;
-  const cfg=payload?.configuration??payload;
+  const cfg=payload?.configuration??null;
   if(!cfg?.rack_specs?.count) return null;
   const specs=cfg.rack_specs;
   return {
@@ -44,9 +43,32 @@ function parseLayoutConfig(data){
     numRows:  cfg.num_rows??3,
     peakKW:   specs.power_per_rack_kw??PEAK_KW,
     designKW: cfg.it_load_kw??DESIGN_KW,
-    // Estimate idle as ~22% of peak (typical server idle ratio)
     idleKW:   specs.idle_kw_per_rack ?? (Math.round(specs.power_per_rack_kw*0.22*10)/10 || IDLE_KW),
   };
+}
+
+// Extract individual rack positions from the layout API response.
+// Uses tile_x / tile_y which are display-safe half-tile grid coordinates.
+// Response shape: { data: { racks: [{ id, row, tile_x, tile_y, x, y, power_kw, ... }] } }
+function extractRackLayout(data){
+  const payload=data?.data??data;
+  const rawRacks=Array.isArray(payload?.racks)?payload.racks
+    :Array.isArray(payload?.rack_list)?payload.rack_list
+    :Array.isArray(payload?.components)?payload.components
+    :[];
+  const racks=rawRacks.filter(r=>r&&(r.id||r.rack_id));
+  if(!racks.length) return null;
+  console.log(`[layout] ${racks.length} individual rack positions from API`);
+  return racks.map(r=>({
+    rack_id: r.id??r.rack_id,
+    row:     r.row??1,
+    // tile_x / tile_y are half-tile coords (~2ft per tile), safe for SVG display
+    // fallback: halve the raw x/y feet coords so they also fit
+    position_ft:{
+      x: r.tile_x!=null ? r.tile_x : Math.max(1, Math.round((r.x??34)/2)),
+      y: r.tile_y!=null ? r.tile_y : Math.max(1, Math.round((r.y??24)/2)),
+    },
+  }));
 }
 
 // Build display layout from thermal component data (preserves real rack IDs for baseline matching)
@@ -256,20 +278,27 @@ export default function SimulationPanel(){
       setBaselineStatus('loaded');
     };
 
-    // 1. Fetch 2D layout config first — drives rack count, power specs, row count
-    //    API returns: { success, data: { configuration: { rack_specs:{count,power_per_rack_kw}, num_rows, it_load_kw } } }
-    let layoutNumRows = 3; // shared with thermal fallback below
+    // 1. Fetch 2D layout — individual rack positions + config spec
+    //    API: { success, data: { racks:[{id,row,tile_x,tile_y,...}], configuration:{...}, aisles:[...] } }
+    let layoutNumRows = 3;
     const layoutPromise = fetch(`/api/oasis/allocation/${selectedAlloc}/layout`)
       .then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(data=>{
-        console.log('[layout] raw response:', JSON.stringify(data).slice(0,400));
+        // Extract simOpts from configuration section
         const cfg = parseLayoutConfig(data);
-        if(!cfg){ console.warn('[layout] parseLayoutConfig returned null'); return false; }
-        console.log(`[layout] parsed: count=${cfg.count} rows=${cfg.numRows} peakKW=${cfg.peakKW} designKW=${cfg.designKW}`);
-        layoutNumRows = cfg.numRows;
-        // Set sim options from layout config (overrides default constants)
-        setSimOpts({ idleKW: cfg.idleKW, peakKW: cfg.peakKW, designKW: cfg.designKW });
-        return cfg; // pass cfg to Promise.all handler
+        if(cfg){
+          layoutNumRows = cfg.numRows;
+          setSimOpts({ idleKW: cfg.idleKW, peakKW: cfg.peakKW, designKW: cfg.designKW });
+          console.log(`[layout] config: count=${cfg.count} rows=${cfg.numRows} peakKW=${cfg.peakKW} designKW=${cfg.designKW}`);
+        }
+        // Extract individual rack positions (real IDs + real coordinates)
+        const layout = extractRackLayout(data);
+        if(layout && layout.length > 0){
+          setRackLayout(layout);
+          return true; // real positions set — skip thermal fallback
+        }
+        console.warn('[layout] no rack positions found; will build from thermal data');
+        return false;
       })
       .catch(err=>{ console.warn('[layout] fetch failed:', err.message); return false; });
 
@@ -279,12 +308,10 @@ export default function SimulationPanel(){
       .then(loadThermal)
       .catch(()=>setBaselineStatus('error'));
 
-    // After both settle: build layout from thermal rack IDs (using numRows from layout config)
-    Promise.all([layoutPromise, thermalPromise]).then(([cfg])=>{
-      if(thermalRacks.length>0){
-        // Always build layout from thermal data so rack IDs match the baseline map
-        const rows = (cfg && cfg.numRows) ? cfg.numRows : layoutNumRows;
-        setRackLayout(buildLayoutFromThermal(thermalRacks, rows));
+    // If layout API had no rack positions, fall back to synthetic grid from thermal IDs
+    Promise.all([layoutPromise, thermalPromise]).then(([layoutOk])=>{
+      if(!layoutOk && thermalRacks.length > 0){
+        setRackLayout(buildLayoutFromThermal(thermalRacks, layoutNumRows));
       }
       setAllocLoading(false);
     });
