@@ -55,16 +55,20 @@ function tempColor(t){
 }
 
 // baseline: Map of rack_id → { temp_c, power_kw } from thermal_overlay.json
-// When loaded: temp = baseline_temp + (simulated_power - baseline_power) × physics_delta
-// When null:   falls back to pure formula from AMBIENT_C
-function simulate(rowOverrides,globalLoad,coolingOk,baseline){
+// opts:     { idleKW, peakKW, designKW } — overrides module constants when loaded from API
+// When baseline loaded: temp = baseline_temp + (simulated_power - baseline_power) × physics_delta
+// When null:            falls back to pure formula from AMBIENT_C
+function simulate(rowOverrides,globalLoad,coolingOk,baseline,opts={}){
+  const idleKw  = opts.idleKW  ?? IDLE_KW;
+  const peakKw  = opts.peakKW  ?? PEAK_KW;
+  const designKw= opts.designKW?? DESIGN_KW;
   const coolDerate=coolingOk?1.0:2.0;
   const rackLoads=RACK_LAYOUT.map(r=>{
     const load=Math.max(0,Math.min(1,rowOverrides[r.row]??globalLoad));
-    return{...r,power_kw:IDLE_KW+(PEAK_KW-IDLE_KW)*load,load_pct:load};
+    return{...r,power_kw:idleKw+(peakKw-idleKw)*load,load_pct:load};
   });
   const totalKW=rackLoads.reduce((s,r)=>s+r.power_kw,0);
-  const overloadFactor=Math.max(1,totalKW/DESIGN_KW);
+  const overloadFactor=Math.max(1,totalKW/designKw);
   const results=rackLoads.map(r=>{
     const rf=ROW_FACTORS[r.row]??1.0;
     const base=baseline?.[r.rack_id];
@@ -82,7 +86,7 @@ function simulate(rowOverrides,globalLoad,coolingOk,baseline){
   const maxTemp=Math.max(...results.map(r=>r.temp_c));
   const violations=results.filter(r=>!r.ashrae_rec).length;
   const critical=results.filter(r=>!r.ashrae_allow).length;
-  const pue=coolingOk?(1+0.4*Math.min(1,totalKW/DESIGN_KW)):2.1;
+  const pue=coolingOk?(1+0.4*Math.min(1,totalKW/designKw)):2.1;
   return{racks:results,totalKW,maxTemp,violations,critical,pue,facilKW:totalKW*pue};
 }
 
@@ -169,23 +173,65 @@ export default function SimulationPanel(){
   const[physError,setPhysError]=useState('');
   const[physUsedImage,setPhysUsedImage]=useState(false);
 
-  // Real sensor baseline — loaded once from /thermal/thermal_overlay.json
+  // Allocation selector — list from OASIS API + currently selected allocation
+  const DEFAULT_ALLOC='20230123-225659-UTC_DFW_375_2800_STD';
+  const[allocations,setAllocations]=useState([]);
+  const[selectedAlloc,setSelectedAlloc]=useState(DEFAULT_ALLOC);
+  const[allocLoading,setAllocLoading]=useState(false);
+  const[simOpts,setSimOpts]=useState({});  // {idleKW, peakKW, designKW} from API metadata
+
+  // Fetch allocation list once on mount
+  useEffect(()=>{
+    fetch('/api/oasis/allocations/DFW')
+      .then(r=>r.json())
+      .then(data=>{
+        // API may return array directly or { allocations:[...] } or { data:[...] }
+        const list=Array.isArray(data)?data:(data.allocations||data.data||[]);
+        if(list.length) setAllocations(list);
+      })
+      .catch(()=>{}); // silently ignore — selector just won't show other options
+  },[]);
+
+  // Real sensor baseline — loaded from OASIS API (falls back to static file)
   const[baseline,setBaseline]=useState(null);        // Map: rack_id → {temp_c, power_kw}
   const[baselineStatus,setBaselineStatus]=useState('loading'); // 'loading'|'loaded'|'error'
 
   useEffect(()=>{
-    fetch('/thermal/thermal_overlay.json')
+    setBaselineStatus('loading');
+    setAllocLoading(true);
+
+    const loadThermal=(data)=>{
+      const map={};
+      (data.component_temperatures||[]).forEach(c=>{
+        if(c.type==='rack') map[c.id]={temp_c:c.temperature_c,power_kw:c.power_kw,severity:c.severity};
+      });
+      setBaseline(map);
+      setBaselineStatus('loaded');
+    };
+
+    // Fetch thermal baseline from OASIS API
+    fetch(`/api/oasis/allocation/${selectedAlloc}/thermal`)
+      .then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(loadThermal)
+      .catch(()=>setBaselineStatus('error'))
+      .finally(()=>setAllocLoading(false));
+
+    // Also fetch power-temp-summary for calibration factors
+    fetch(`/api/oasis/allocation/${selectedAlloc}/power-temp`)
       .then(r=>r.json())
       .then(data=>{
-        const map={};
-        (data.component_temperatures||[]).forEach(c=>{
-          if(c.type==='rack') map[c.id]={temp_c:c.temperature_c,power_kw:c.power_kw,severity:c.severity};
-        });
-        setBaseline(map);
-        setBaselineStatus('loaded');
+        const cf=data.metadata?.calibration_factors||data.calibration_factors||{};
+        const as=data.allocation_stats||data.power?.allocation_stats||{};
+        if(cf.idle_kw_per_rack||cf.peak_kw_per_rack){
+          setSimOpts({
+            idleKW:  cf.idle_kw_per_rack  ?? IDLE_KW,
+            peakKW:  cf.peak_kw_per_rack  ?? PEAK_KW,
+            designKW:as.max_kw            ?? DESIGN_KW,
+          });
+        }
       })
-      .catch(()=>setBaselineStatus('error'));
-  },[]);
+      .catch(()=>{}); // silently ignore — keeps default constants
+  },[selectedAlloc]);
 
   // Cosmos live prediction mode
   const[cosmosMode,setCosmosMode]=useState(false);
@@ -195,7 +241,7 @@ export default function SimulationPanel(){
 
   const applyScenario=idx=>{setScenario(idx);setGlobalLoad(SCENARIOS[idx].globalLoad);setRowOverrides({});setCoolingOk(SCENARIOS[idx].coolingOk);};
   const getRowLoad=row=>rowOverrides[row]??globalLoad;
-  const sim=simulate(rowOverrides,globalLoad,coolingOk,baseline);
+  const sim=simulate(rowOverrides,globalLoad,coolingOk,baseline,simOpts);
   const hoveredRack=sim.racks.find(r=>r.rack_id===hovered);
 
   // Auto-predict: 1.5s after slider stops, if Cosmos mode is on
@@ -248,7 +294,7 @@ export default function SimulationPanel(){
         return{row,avgBaseline_c:vals.length?(vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(1):null};
       }),
     } : {hasRealBaseline:false,baselineNote:'Formula-only — thermal_overlay.json not loaded'};
-    return{mode,scenario:scenarioLabel,totalKW:sim.totalKW,facilKW:sim.facilKW,pue:sim.pue,maxTemp:sim.maxTemp,violations:sim.violations,critical:sim.critical,globalLoad,coolingOk,rowStats,topRisks,...baselineCtx};
+    return{mode,allocationId:selectedAlloc,scenario:scenarioLabel,totalKW:sim.totalKW,facilKW:sim.facilKW,pue:sim.pue,maxTemp:sim.maxTemp,violations:sim.violations,critical:sim.critical,globalLoad,coolingOk,rowStats,topRisks,...baselineCtx};
   };
 
   const askCompliance=async()=>{
@@ -346,6 +392,26 @@ export default function SimulationPanel(){
       </div>
 
       <div className={styles.panel}>
+        {/* Allocation Selector */}
+        <div className={styles.section}>
+          <div className={styles.sectionTitle}>📁 Allocation</div>
+          <select
+            className={styles.allocSelect}
+            value={selectedAlloc}
+            onChange={e=>{setSelectedAlloc(e.target.value);setScenario(0);setRowOverrides({});}}
+            disabled={allocLoading}
+          >
+            {/* Always show current as an option even if list didn't load */}
+            {[...new Set([DEFAULT_ALLOC,...allocations])].map(id=>(
+              <option key={id} value={id}>{id}</option>
+            ))}
+          </select>
+          {allocLoading&&<div className={styles.imageNote}>⏳ Loading allocation data…</div>}
+          {simOpts.idleKW&&<div className={styles.imageNote}>
+            Calibration: idle {simOpts.idleKW} kW · peak {simOpts.peakKW} kW · design {simOpts.designKW?.toFixed(0)} kW
+          </div>}
+        </div>
+
         {/* Cosmos Live Prediction Mode toggle */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>🔮 Cosmos Live Prediction</div>

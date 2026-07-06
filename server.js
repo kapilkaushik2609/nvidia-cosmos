@@ -10,9 +10,10 @@ const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
 const VLLM_URL = process.env.VLLM_URL || "http://127.0.0.1:8001";
-const ALLOC_BASE = process.env.ALLOC_BASE || __dirname;
+// const ALLOC_BASE = process.env.ALLOC_BASE || __dirname; // replaced by OASIS API
 const MODEL = process.env.MODEL || "nvidia/Cosmos3-Nano";
 const PORT = process.env.PORT || 7086;
+const OASIS_API = process.env.OASIS_API || "http://103.204.95.220:7040"; // OASIS backend
 const IDLE_TIMEOUT_MS = (process.env.IDLE_TIMEOUT_MIN || 10) * 60 * 1000;
 const STARTUP_MAX_MS = 5 * 60 * 1000; // give up if model not ready in 5 min
 const POLL_INTERVAL_MS = 5_000;
@@ -21,16 +22,12 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "client", "dist")));
 
-// Serve allocation data files for the viewer
-app.use("/thermal", express.static(path.join(ALLOC_BASE, "thermal")));
-app.use("/powerdraw", express.static(path.join(ALLOC_BASE, "powerdraw")));
-app.use("/temperature", express.static(path.join(ALLOC_BASE, "temperature")));
-app.get("/config.json", (_, res) =>
-  res.sendFile(path.join(ALLOC_BASE, "config.json")),
-);
-app.get("/report.json", (_, res) =>
-  res.sendFile(path.join(ALLOC_BASE, "report.json")),
-);
+// Static allocation file routes removed — data now served via OASIS API proxy
+// app.use("/thermal",      express.static(path.join(ALLOC_BASE, "thermal")));
+// app.use("/powerdraw",    express.static(path.join(ALLOC_BASE, "powerdraw")));
+// app.use("/temperature",  express.static(path.join(ALLOC_BASE, "temperature")));
+// app.get("/config.json",  (_, res) => res.sendFile(path.join(ALLOC_BASE, "config.json")));
+// app.get("/report.json",  (_, res) => res.sendFile(path.join(ALLOC_BASE, "report.json")));
 
 /* ─── vLLM On-Demand Process Manager ────────────────────────────────── */
 
@@ -68,9 +65,15 @@ const VLLM_ARGS_BASE = [
   "8001",
 ];
 // --mm-encoder-tp-mode is only valid when TP > 1
-const VLLM_ARGS = TP > 1
-  ? [...VLLM_ARGS_BASE.slice(0, 6), "--mm-encoder-tp-mode", "data", ...VLLM_ARGS_BASE.slice(6)]
-  : VLLM_ARGS_BASE;
+const VLLM_ARGS =
+  TP > 1
+    ? [
+        ...VLLM_ARGS_BASE.slice(0, 6),
+        "--mm-encoder-tp-mode",
+        "data",
+        ...VLLM_ARGS_BASE.slice(6),
+      ]
+    : VLLM_ARGS_BASE;
 
 const VLLM_ENV = {
   ...process.env,
@@ -323,24 +326,33 @@ app.post("/api/predict-thermal", async (req, res) => {
     await ensureVLLM();
     const { totalKW, globalLoad, coolingOk, rowStats, topRisks } = req.body;
 
-    const thermalImg = path.join(ALLOC_BASE, "thermal", "thermal_map_composite.png");
+    const thermalImg = path.join(
+      ALLOC_BASE,
+      "thermal",
+      "thermal_map_composite.png",
+    );
     let imageContent = null;
     if (fs.existsSync(thermalImg)) {
       const b64 = fs.readFileSync(thermalImg).toString("base64");
-      imageContent = { type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } };
+      imageContent = {
+        type: "image_url",
+        image_url: { url: `data:image/png;base64,${b64}` },
+      };
     }
 
-    const prompt =
-`You are a datacenter thermal AI. Analyze the DFW datacenter (52 racks, 3 rows, 375 kW capacity).
+    const prompt = `You are a datacenter thermal AI. Analyze the DFW datacenter (52 racks, 3 rows, 375 kW capacity).
 
 CURRENT LOAD STATE:
-- IT Load: ${Number(totalKW).toFixed(0)} kW / 375 kW (${(totalKW/375*100).toFixed(0)}%)
-- Global rack utilisation: ${Math.round(globalLoad*100)}%
+- IT Load: ${Number(totalKW).toFixed(0)} kW / 375 kW (${((totalKW / 375) * 100).toFixed(0)}%)
+- Global rack utilisation: ${Math.round(globalLoad * 100)}%
 - Cooling: ${coolingOk ? "normal N+1" : "FAULT — 50% capacity"}
 - Row 1: avg ${rowStats?.[0]?.avgTemp?.toFixed(1)}°C, ${rowStats?.[0]?.violations}/${rowStats?.[0]?.count} racks exceed 27°C
 - Row 2: avg ${rowStats?.[1]?.avgTemp?.toFixed(1)}°C, ${rowStats?.[1]?.violations}/${rowStats?.[1]?.count} racks exceed 27°C
 - Row 3: avg ${rowStats?.[2]?.avgTemp?.toFixed(1)}°C, ${rowStats?.[2]?.violations}/${rowStats?.[2]?.count} racks exceed 27°C
-- Hottest racks: ${(topRisks||[]).slice(0,3).map(r=>`${r.rack_id}(${Number(r.temp_c).toFixed(1)}°C)`).join(", ")}
+- Hottest racks: ${(topRisks || [])
+      .slice(0, 3)
+      .map((r) => `${r.rack_id}(${Number(r.temp_c).toFixed(1)}°C)`)
+      .join(", ")}
 ${imageContent ? "\nThe image shows the actual thermal baseline of this datacenter." : ""}
 
 Respond ONLY in this exact format — no other text, no explanation outside the fields:
@@ -355,25 +367,33 @@ URGENT_ACTION: [max 12 words — most critical action ops team should take now]`
       ? [imageContent, { type: "text", text: prompt }]
       : [{ type: "text", text: prompt }];
 
-    const payload = { model: MODEL, messages: [{ role: "user", content }], max_tokens: 200 };
+    const payload = {
+      model: MODEL,
+      messages: [{ role: "user", content }],
+      max_tokens: 200,
+    };
     const upstream = await fetch(`${VLLM_URL}/v1/chat/completions`, {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
     const data = await upstream.json();
-    if (!upstream.ok) return res.status(upstream.status).json({ error: JSON.stringify(data) });
+    if (!upstream.ok)
+      return res.status(upstream.status).json({ error: JSON.stringify(data) });
 
     resetIdle();
     const text = data.choices?.[0]?.message?.content ?? "";
 
     // Parse structured response
-    const get = (key) => text.match(new RegExp(`${key}:\\s*(.+)`))?.[1]?.trim() ?? null;
+    const get = (key) =>
+      text.match(new RegExp(`${key}:\\s*(.+)`))?.[1]?.trim() ?? null;
     const prediction = {
       row1: get("ROW_1_RISK") ?? "UNKNOWN",
       row2: get("ROW_2_RISK") ?? "UNKNOWN",
       row3: get("ROW_3_RISK") ?? "UNKNOWN",
       maxTemp: get("PREDICTED_MAX_TEMP") ?? null,
       hotspot: get("HOTSPOT_ZONE") ?? null,
-      action:  get("URGENT_ACTION") ?? null,
+      action: get("URGENT_ACTION") ?? null,
       raw: text,
     };
 
@@ -391,43 +411,63 @@ app.post("/api/analyze-simulation", async (req, res) => {
 
     const {
       mode = "general",
-      scenario, totalKW, facilKW, pue, maxTemp,
-      violations, critical, globalLoad, coolingOk, rowStats, topRisks,
+      scenario,
+      totalKW,
+      facilKW,
+      pue,
+      maxTemp,
+      violations,
+      critical,
+      globalLoad,
+      coolingOk,
+      rowStats,
+      topRisks,
     } = req.body;
 
     // Try to load the actual thermal composite image
-    const thermalImg = path.join(ALLOC_BASE, "thermal", "thermal_map_composite.png");
+    const thermalImg = path.join(
+      ALLOC_BASE,
+      "thermal",
+      "thermal_map_composite.png",
+    );
     let imageContent = null;
     if (fs.existsSync(thermalImg)) {
       const b64 = fs.readFileSync(thermalImg).toString("base64");
-      imageContent = { type: "image_url", image_url: { url: `data:image/png;base64,${b64}` } };
+      imageContent = {
+        type: "image_url",
+        image_url: { url: `data:image/png;base64,${b64}` },
+      };
     }
 
     // Shared data block used in all prompts
-    const dataBlock =
-`FACILITY: DFW Datacenter — Vertex AI Systems, 70x40 ft, 52 racks, 3 rows, 375 kW IT design capacity
+    const dataBlock = `FACILITY: DFW Datacenter — Vertex AI Systems, 70x40 ft, 52 racks, 3 rows, 375 kW IT design capacity
 SCENARIO:  ${scenario || "Custom"}
-IT Load:   ${Number(totalKW).toFixed(0)} kW / 375 kW design (${(totalKW/375*100).toFixed(0)}%)
+IT Load:   ${Number(totalKW).toFixed(0)} kW / 375 kW design (${((totalKW / 375) * 100).toFixed(0)}%)
 Facility:  ${Number(facilKW).toFixed(0)} kW  |  PUE ${Number(pue).toFixed(2)}
-Load:      ${Math.round(globalLoad*100)}% global rack utilisation
+Load:      ${Math.round(globalLoad * 100)}% global rack utilisation
 Peak Temp: ${Number(maxTemp).toFixed(1)} deg C
 ASHRAE Recommended (27 deg C): ${violations}/52 racks exceed limit
 ASHRAE Allowable  (32 deg C): ${critical}/52 racks at or above critical threshold
 Cooling:   ${coolingOk ? "Normal — N+1 CRAC units online" : "FAULT — 50% cooling capacity (one CRAC offline)"}
 
 ROW BREAKDOWN:
-${(rowStats||[]).map(r=>`  Row ${r.row}: avg ${Number(r.avgTemp).toFixed(1)} deg C | ${r.violations}/${r.count} racks exceed 27 deg C`).join("\n")}
+${(rowStats || []).map((r) => `  Row ${r.row}: avg ${Number(r.avgTemp).toFixed(1)} deg C | ${r.violations}/${r.count} racks exceed 27 deg C`).join("\n")}
 
 TOP AT-RISK RACKS (hottest):
-${(topRisks||[]).slice(0,6).map((r,i)=>`  ${i+1}. ${r.rack_id} (Row ${r.row}): ${Number(r.temp_c).toFixed(1)} deg C  ${Number(r.power_kw).toFixed(1)} kW`).join("\n")}
+${(topRisks || [])
+  .slice(0, 6)
+  .map(
+    (r, i) =>
+      `  ${i + 1}. ${r.rack_id} (Row ${r.row}): ${Number(r.temp_c).toFixed(1)} deg C  ${Number(r.power_kw).toFixed(1)} kW`,
+  )
+  .join("\n")}
 ${imageContent ? "\nThe attached image is the real thermal baseline map of this datacenter." : ""}`;
 
     let prompt;
     let max_tokens = 1500;
 
     if (mode === "compliance") {
-      prompt =
-`You are a datacenter facility operator responsible for regulatory compliance reporting to external bodies.
+      prompt = `You are a datacenter facility operator responsible for regulatory compliance reporting to external bodies.
 
 APPLICABLE STANDARDS:
 
@@ -460,10 +500,8 @@ Provide a structured compliance assessment:
 5. CORRECTIVE ACTIONS — Steps to restore compliance, ordered: immediate / within 24h / within 1 week.
 6. ASME V&V 20 GAP — Identify discrepancies between formula-based simulation and the thermal image baseline that require documented validation with uncertainty quantification per ASME V&V 20.
 7. COMPLIANCE RISK RATING — LOW / MEDIUM / HIGH / CRITICAL with justification referencing the specific TC 9.9 class threshold being approached or breached.`;
-
     } else if (mode === "physics") {
-      prompt =
-`You are a datacenter thermal engineer with deep expertise in thermodynamics, computational fluid dynamics (CFD), heat transfer, and building management systems.
+      prompt = `You are a datacenter thermal engineer with deep expertise in thermodynamics, computational fluid dynamics (CFD), heat transfer, and building management systems.
 
 This facility uses hot-aisle/cold-aisle containment with N+1 precision CRAC cooling.
 Physics model: idle power 4.0 kW/rack, peak 18.0 kW/rack, thermal coefficient 0.969 deg C/kW, ambient supply 18 deg C.
@@ -477,11 +515,9 @@ Provide a physics-based thermal engineering analysis:
 4. COOLING HEADROOM — Quantify remaining cooling capacity in kW. At what IT load percentage does the cooling system reach saturation? What is the thermal cascade failure threshold under current CRAC state?
 5. OPERATING ENVELOPE — State the min/max safe power envelope per rack and total facility under current cooling conditions. What is the absolute ceiling before forced shutdown is required?
 6. LOAD DELTA PREDICTION — If IT load increases from current by +10% / +20% / +30%, predict the temperature delta (deg C) per row and identify which row breaches the allowable limit first.`;
-
     } else {
       // General / legacy mode
-      prompt =
-`You are a datacenter thermal management AI analyzing the DFW datacenter (Vertex AI Systems, 70x40 ft, 52 racks, 3 rows, 375 kW IT design capacity).
+      prompt = `You are a datacenter thermal management AI analyzing the DFW datacenter (Vertex AI Systems, 70x40 ft, 52 racks, 3 rows, 375 kW IT design capacity).
 
 ${dataBlock}
 
@@ -526,6 +562,60 @@ Provide a concise analysis:
   }
 });
 
+// ─── OASIS Backend Proxy ─────────────────────────────────────────────────────
+// Proxies allocation API endpoints from the OASIS backend (port 7040)
+
+app.get("/api/oasis/allocations/:datacenter", async (req, res) => {
+  try {
+    const upstream = await fetch(
+      `${OASIS_API}/api/allocation/all/${req.params.datacenter}`,
+    );
+    const data = await upstream.json();
+    res.status(upstream.status).json(data);
+  } catch (err) {
+    console.error("[oasis/allocations]", err.message);
+    res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
+  }
+});
+
+app.get("/api/oasis/allocation/:id/power-temp", async (req, res) => {
+  try {
+    const upstream = await fetch(
+      `${OASIS_API}/api/allocation/${req.params.id}/power-temp-summary`,
+    );
+    const data = await upstream.json();
+    res.status(upstream.status).json(data);
+  } catch (err) {
+    console.error("[oasis/power-temp]", err.message);
+    res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
+  }
+});
+
+app.get("/api/oasis/allocation/:id/thermal", async (req, res) => {
+  try {
+    const upstream = await fetch(
+      `${OASIS_API}/api/allocation/thermal/${req.params.id}`,
+    );
+    const data = await upstream.json();
+    res.status(upstream.status).json(data);
+  } catch (err) {
+    console.error("[oasis/thermal]", err.message);
+    res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
+  }
+});
+
+app.get("/api/oasis/allocation/:id/report", async (req, res) => {
+  try {
+    const upstream = await fetch(
+      `${OASIS_API}/api/allocation/single/${req.params.id}`,
+    );
+    const data = await upstream.json();
+    res.status(upstream.status).json(data);
+  } catch (err) {
+    console.error("[oasis/report]", err.message);
+    res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
+  }
+});
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
 });
@@ -533,16 +623,13 @@ app.get("*", (_req, res) => {
 app.listen(PORT, () => {
   console.log(`\n  Backend  → http://localhost:${PORT}`);
   console.log(`  vLLM   → ${VLLM_URL}`);
+  console.log(`  OASIS  → ${OASIS_API}`);
   console.log(
     `  Mode     → on-demand (idle timeout: ${IDLE_TIMEOUT_MS / 60000} min)\n`,
   );
 });
 
 process.on("SIGINT", () => {
-  stopVLLM();
-  process.exit(0);
-});
-process.on("SIGTERM", () => {
   stopVLLM();
   process.exit(0);
 });

@@ -327,6 +327,23 @@
 }
 .cosmosBtnPhysics:hover:not(:disabled) { background: linear-gradient(135deg,#002244,#001122); box-shadow: 0 0 12px #1a6aaa44; }
 
+/* Allocation selector */
+.allocSelect {
+  width: 100%;
+  background: #0d0d18;
+  color: #ccc;
+  border: 1px solid #2a2a44;
+  border-radius: 5px;
+  padding: 6px 8px;
+  font-size: 0.72rem;
+  font-family: monospace;
+  cursor: pointer;
+  outline: none;
+}
+.allocSelect:hover { border-color: #444; }
+.allocSelect:focus { border-color: #76b900; }
+.allocSelect:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* Baseline status chip */
 .baselineChip {
   font-size: 0.65rem;
