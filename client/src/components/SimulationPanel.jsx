@@ -182,7 +182,7 @@ export default function SimulationPanel(){
 
   // Fetch allocation list once on mount
   useEffect(()=>{
-    fetch('/api/oasis/allocations/DFW')
+    fetch('/api/oasis/allocations/CHI1-CHI3')
       .then(r=>r.json())
       .then(data=>{
         // API may return array directly or { allocations:[...] } or { data:[...] }
