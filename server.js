@@ -41,31 +41,41 @@ let startPromise = null;
 
 // Direct path inside the virtualenv — no shell activation needed
 const VLLM_BIN = "/home/block2/cosmos-reasoner/bin/vllm";
-const VLLM_ARGS = [
+// GPU strategy:
+//   TP2 mode  → both GPUs (0,1) — needs GPU 1 to be mostly free (Ollama must be stopped)
+//   TP1 mode  → GPU 0 only (A4000 15 GB, always idle) — works even while Ollama runs on GPU 1
+//
+// Set COSMOS_TP=1 in the environment to force single-GPU mode, e.g.:
+//   COSMOS_TP=1 npm run dev
+const TP = parseInt(process.env.COSMOS_TP || "2", 10);
+const VLLM_ARGS_BASE = [
   "serve",
   "nvidia/Cosmos3-Nano",
   "--hf-overrides",
   '{"architectures":["Cosmos3ReasonerForConditionalGeneration"]}',
   "--tensor-parallel-size",
-  "2",
-  "--mm-encoder-tp-mode",
-  "data",
+  String(TP),
   "--async-scheduling",
   "--allowed-local-media-path",
   "/",
   "--media-io-kwargs",
   '{"video":{"num_frames":-1}}',
   "--gpu-memory-utilization",
-  "0.92",
+  TP === 1 ? "0.90" : "0.92",
   "--max-model-len",
   "8192",
   "--port",
   "8001",
 ];
+// --mm-encoder-tp-mode is only valid when TP > 1
+const VLLM_ARGS = TP > 1
+  ? [...VLLM_ARGS_BASE.slice(0, 6), "--mm-encoder-tp-mode", "data", ...VLLM_ARGS_BASE.slice(6)]
+  : VLLM_ARGS_BASE;
+
 const VLLM_ENV = {
   ...process.env,
   CUDA_DEVICE_ORDER: "PCI_BUS_ID",
-  CUDA_VISIBLE_DEVICES: "0,1",
+  CUDA_VISIBLE_DEVICES: TP === 1 ? "0" : "0,1",
   HF_HUB_OFFLINE: "1",
   VLLM_USE_FLASHINFER_SAMPLER: "0",
   VLLM_MEMORY_PROFILER_ESTIMATE_CUDAGRAPHS: "0",
@@ -419,24 +429,37 @@ ${imageContent ? "\nThe attached image is the real thermal baseline map of this 
       prompt =
 `You are a datacenter facility operator responsible for regulatory compliance reporting to external bodies.
 
-This facility must meet:
-  - ASHRAE Guideline 14: Temperature measured at THREE heights per cabinet:
-      Bottom (6 in / 15 cm from floor)   — cold aisle inlet air, most critical measurement
-      Middle (36 in / 91 cm from floor)  — mid-rack compute zone
-      Top    (66 in / 168 cm from floor) — exhaust air, secondary measurement
-    ASHRAE GL-14 thresholds: Recommended 18-27 deg C | Allowable max 32 deg C
-  - ASME V&V 20: Verification and Validation of Computational Fluid Dynamics and Heat Transfer Simulations
-    (requires thermal models be validated against measured physical data with documented uncertainty bounds)
+APPLICABLE STANDARDS:
+
+ASHRAE TC 9.9 — Thermal Guidelines for Data Processing Environments
+  Equipment classes (based on installed IT hardware):
+    Class A1 (enterprise servers):       Inlet 15-27 deg C recommended | 10-35 deg C allowable
+    Class A2 (mainstream servers):       Inlet 10-35 deg C recommended | 10-35 deg C allowable
+    Class A3 (high-density / telco):     Inlet  5-40 deg C recommended |  5-45 deg C allowable
+    Class A4 (extended-range):           Inlet  5-45 deg C recommended |  5-45 deg C allowable
+  This facility is assumed Class A1/A2 (enterprise datacenter).
+  Operative limits applied: Recommended 18-27 deg C | Allowable maximum 32 deg C
+
+TC 9.9 THREE-LEVEL RACK MEASUREMENT (mandatory measurement positions per cabinet):
+    Level 1 — Bottom  (U1-U14,  floor to ~25 in):  cold aisle inlet, most critical
+    Level 2 — Middle  (U15-U28, 25 in to ~50 in):  mid-rack compute zone
+    Level 3 — Top     (U29-U42, 50 in to ~75 in):  upper exhaust return zone
+
+ASME V&V 20 — Standard for Verification and Validation of CFD and Heat Transfer Simulations
+  Requires: (a) thermal simulation validated against physical sensor data,
+            (b) documented uncertainty bounds and mesh/model convergence evidence,
+            (c) formal comparison of simulated vs measured values at the same spatial points.
 
 ${dataBlock}
 
 Provide a structured compliance assessment:
-1. COMPLIANCE STATUS — State clearly: COMPLIANT or NON-COMPLIANT. Which standard is breached?
-2. VIOLATION REPORT — For each violating row or zone: location, estimated temperature at each of the 3 ASHRAE GL-14 measurement heights (bottom/middle/top), which limit is breached, and severity level.
-3. REPORTABLE INCIDENTS — Which violations must be formally reported and to whom? At what threshold does this become a mandatory disclosure?
-4. CORRECTIVE ACTIONS — Specific steps to restore compliance, ordered by urgency (immediate / within 24h / within 1 week).
-5. ASME V&V 20 GAP — Are there discrepancies between the formula-based simulation and the thermal image baseline that require documented validation under ASME V&V 20?
-6. COMPLIANCE RISK RATING — LOW / MEDIUM / HIGH / CRITICAL with a one-sentence justification.`;
+1. COMPLIANCE STATUS — COMPLIANT or NON-COMPLIANT per ASHRAE TC 9.9. State which class (A1/A2/A3/A4) this facility is currently operating at and whether that matches the installed equipment class.
+2. EQUIPMENT CLASS RISK — Is there a class downgrade risk? (e.g. A1 equipment exposed to A2/A3 inlet conditions.) Which rows or racks are forcing class migration?
+3. VIOLATION REPORT — For each violating row/zone: location, estimated temperature at each of the 3 TC 9.9 measurement levels (bottom/middle/top), which limit is breached, and severity.
+4. REPORTABLE INCIDENTS — Which violations require formal disclosure (to equipment vendors, insurers, or facility management)? At what temperature threshold does warranty/SLA exposure begin?
+5. CORRECTIVE ACTIONS — Steps to restore compliance, ordered: immediate / within 24h / within 1 week.
+6. ASME V&V 20 GAP — Identify discrepancies between formula-based simulation and the thermal image baseline that require documented validation with uncertainty quantification per ASME V&V 20.
+7. COMPLIANCE RISK RATING — LOW / MEDIUM / HIGH / CRITICAL with justification referencing the specific TC 9.9 class threshold being approached or breached.`;
 
     } else if (mode === "physics") {
       prompt =
