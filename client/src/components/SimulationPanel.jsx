@@ -31,6 +31,24 @@ const RACK_LAYOUT = [
   {rack_id:"RACK-052",row:3,position_ft:{x:49,y:30}},
 ];
 
+// Build a rack layout grid from live API data (component_temperatures racks)
+// Distributes racks across 3 rows in the same SVG coordinate space as the hardcoded layout
+function buildLayout(rackItems){
+  const sorted=[...rackItems].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
+  const n=sorted.length;
+  const r1=Math.ceil(n/3), r2=Math.ceil((n-r1)/2), r3=n-r1-r2;
+  const rowCounts=[r1,r2,r3], yPositions=[12,20,30];
+  const layout=[]; let idx=0;
+  for(let row=0;row<3;row++){
+    for(let i=0;i<rowCounts[row];i++){
+      if(idx>=n) break;
+      layout.push({rack_id:sorted[idx].id, row:row+1, position_ft:{x:17+i*2, y:yPositions[row]}});
+      idx++;
+    }
+  }
+  return layout;
+}
+
 const IDLE_KW=4.0,PEAK_KW=18.0,AMBIENT_C=18.0,TEMP_PER_KW=0.969,DESIGN_KW=375;
 const ROW_FACTORS={1:1.000,2:1.002,3:1.004};
 const ASHRAE_REC=27.0,ASHRAE_ALLOW=32.0;
@@ -58,12 +76,12 @@ function tempColor(t){
 // opts:     { idleKW, peakKW, designKW } — overrides module constants when loaded from API
 // When baseline loaded: temp = baseline_temp + (simulated_power - baseline_power) × physics_delta
 // When null:            falls back to pure formula from AMBIENT_C
-function simulate(rowOverrides,globalLoad,coolingOk,baseline,opts={}){
+function simulate(rowOverrides,globalLoad,coolingOk,baseline,opts={},layout=RACK_LAYOUT){
   const idleKw  = opts.idleKW  ?? IDLE_KW;
   const peakKw  = opts.peakKW  ?? PEAK_KW;
   const designKw= opts.designKW?? DESIGN_KW;
   const coolDerate=coolingOk?1.0:2.0;
-  const rackLoads=RACK_LAYOUT.map(r=>{
+  const rackLoads=layout.map(r=>{
     const load=Math.max(0,Math.min(1,rowOverrides[r.row]??globalLoad));
     return{...r,power_kw:idleKw+(peakKw-idleKw)*load,load_pct:load};
   });
@@ -198,21 +216,23 @@ export default function SimulationPanel(){
       .catch(()=>{}); // silently ignore — selector just won't show other options
   },[]);
 
-  // Real sensor baseline — loaded from OASIS API (falls back to static file)
+  // Real sensor baseline — loaded from OASIS API
   const[baseline,setBaseline]=useState(null);        // Map: rack_id → {temp_c, power_kw}
   const[baselineStatus,setBaselineStatus]=useState('loading'); // 'loading'|'loaded'|'error'
+  const[rackLayout,setRackLayout]=useState(RACK_LAYOUT); // dynamic layout from API racks
 
   useEffect(()=>{
     setBaselineStatus('loading');
     setAllocLoading(true);
 
     const loadThermal=(data)=>{
+      const racks=(data.component_temperatures||[]).filter(c=>c.type==='rack');
       const map={};
-      (data.component_temperatures||[]).forEach(c=>{
-        if(c.type==='rack') map[c.id]={temp_c:c.temperature_c,power_kw:c.power_kw,severity:c.severity};
-      });
+      racks.forEach(c=>{ map[c.id]={temp_c:c.temperature_c,power_kw:c.power_kw,severity:c.severity}; });
       setBaseline(map);
       setBaselineStatus('loaded');
+      // Rebuild floorplan layout from this allocation's actual racks
+      if(racks.length>0) setRackLayout(buildLayout(racks));
     };
 
     // Fetch thermal baseline from OASIS API
@@ -247,7 +267,7 @@ export default function SimulationPanel(){
 
   const applyScenario=idx=>{setScenario(idx);setGlobalLoad(SCENARIOS[idx].globalLoad);setRowOverrides({});setCoolingOk(SCENARIOS[idx].coolingOk);};
   const getRowLoad=row=>rowOverrides[row]??globalLoad;
-  const sim=simulate(rowOverrides,globalLoad,coolingOk,baseline,simOpts);
+  const sim=simulate(rowOverrides,globalLoad,coolingOk,baseline,simOpts,rackLayout);
   const hoveredRack=sim.racks.find(r=>r.rack_id===hovered);
 
   // Auto-predict: 1.5s after slider stops, if Cosmos mode is on
@@ -295,7 +315,7 @@ export default function SimulationPanel(){
       hasRealBaseline:true,
       baselineNote:'Temperatures are physics deltas from real thermal_overlay.json baseline (measured at 17.5 kW/rack)',
       baselineRowAvg:[1,2,3].map(row=>{
-        const ids=RACK_LAYOUT.filter(r=>r.row===row).map(r=>r.rack_id);
+        const ids=rackLayout.filter(r=>r.row===row).map(r=>r.rack_id);
         const vals=ids.map(id=>baseline[id]?.temp_c).filter(Boolean);
         return{row,avgBaseline_c:vals.length?(vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(1):null};
       }),
