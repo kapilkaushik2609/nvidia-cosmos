@@ -52,7 +52,8 @@ function parseLayoutConfig(data){
 // Response shape: { data: { racks: [{ id, row, tile_x, tile_y, x, y, power_kw, ... }] } }
 function extractRackLayout(data){
   const payload=data?.data??data;
-  const rawRacks=Array.isArray(payload?.racks)?payload.racks
+  const rawRacks=Array.isArray(payload?.layout_elements)?payload.layout_elements
+    :Array.isArray(payload?.racks)?payload.racks
     :Array.isArray(payload?.rack_list)?payload.rack_list
     :Array.isArray(payload?.components)?payload.components
     :[];
