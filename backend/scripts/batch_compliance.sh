@@ -10,7 +10,12 @@
 #   ./batch_compliance.sh                       # full run, both datacenters
 #   LIMIT=3 ./batch_compliance.sh                # only first 3 allocations per datacenter (dry run)
 #   BACKEND_URL=http://103.204.95.220:7086 ./batch_compliance.sh
-#   OUTFILE=results.csv DATACENTERS="CHI1-CHI3" ./batch_compliance.sh
+#   OUTFILE=results.csv LOGFILE=run.log DATACENTERS="CHI1-CHI3" ./batch_compliance.sh
+#
+# Two output files:
+#   OUTFILE (CSV)  — one row per allocation: datacenter, allocation_id, customer_name, compliance_status
+#   LOGFILE (text) — every console progress line PLUS the full raw request/response
+#                    JSON for every API call, per allocation, for debugging failures
 #
 # NOTE: deliberately does NOT use `set -e` — this is a long batch job over many
 # allocations, and one allocation's API hiccup (bad JSON, no compliance match,
@@ -21,30 +26,54 @@ set -u
 
 BACKEND_URL="${BACKEND_URL:-http://localhost:7086}"
 OUTFILE="${OUTFILE:-test_allocation_reasoner_v1_compliance_only.csv}"
+LOGFILE="${LOGFILE:-batch_compliance.log}"
 SLEEP_BETWEEN="${SLEEP_BETWEEN:-1}"   # seconds between Cosmos calls
 LIMIT="${LIMIT:-0}"                  # 0 = no limit; set e.g. LIMIT=3 for a dry run
 read -r -a DATACENTERS <<< "${DATACENTERS:-CHI1-CHI3 DFW3-DFW5}"
 
+: > "$LOGFILE"
+
+# Prints to console AND appends to the log file (timestamped) — use for
+# progress/status/error messages.
+log() {
+  local ts
+  ts=$(date '+%Y-%m-%d %H:%M:%S')
+  printf '[%s] %s\n' "$ts" "$*" | tee -a "$LOGFILE"
+}
+
+# Appends verbose data (raw API request/response JSON) to the log file ONLY —
+# keeps the console readable while the log file has full detail per allocation.
+log_data() {
+  local label="$1" data="$2"
+  {
+    echo "----- $label -----"
+    echo "$data"
+    echo "-------------------"
+  } >> "$LOGFILE"
+}
+
 command -v jq >/dev/null 2>&1 || {
-  echo "jq is required — install it (apt install jq / choco install jq / https://jqlang.github.io/jq/download/) and re-run." >&2
+  log "ERROR: jq is required — install it (apt install jq / choco install jq / https://jqlang.github.io/jq/download/) and re-run."
   exit 1
 }
 
+log "=== Batch compliance run starting — backend=$BACKEND_URL datacenters=${DATACENTERS[*]} limit=$LIMIT ==="
+
 # ── Warm up vLLM before hammering it with ~100+ sequential requests ────────
-echo "Warming up vLLM…"
+log "Warming up vLLM…"
 curl -s --max-time 30 -X POST "$BACKEND_URL/api/start" >/dev/null
 status="starting"
 for i in $(seq 1 60); do
   status=$(curl -s --max-time 10 "$BACKEND_URL/api/health" | jq -r '.status // "unknown"' 2>/dev/null)
   [ "$status" = "running" ] && break
-  echo "  vLLM status: ${status:-unknown} ($i/60)"
+  log "  vLLM status: ${status:-unknown} ($i/60)"
   sleep 5
 done
 if [ "$status" != "running" ]; then
-  echo "vLLM never became ready — aborting." >&2
+  log "ERROR: vLLM never became ready — aborting."
   exit 1
 fi
-echo "vLLM ready."
+log "vLLM ready."
 
 echo "datacenter,allocation_id,customer_name,compliance_status" > "$OUTFILE"
 
@@ -58,37 +87,42 @@ write_row() {
 }
 
 for dc in "${DATACENTERS[@]}"; do
-  echo "== Datacenter: $dc =="
+  log "== Datacenter: $dc =="
   alloc_ids=$(curl -s --max-time 30 "$BACKEND_URL/api/oasis/allocations/$dc" \
     | jq -r 'if type=="array" then .[] else (.allocations // .data // [])[] end
              | if type=="string" then . else .allocationId end' 2>/dev/null)
 
   if [ -z "$alloc_ids" ]; then
-    echo "  (no allocations found for $dc — skipping)"
+    log "  (no allocations found for $dc — skipping)"
     continue
   fi
 
   count=0
   while IFS= read -r alloc_id; do
+    alloc_id="${alloc_id%$'\r'}"  # strip a stray trailing CR (e.g. CRLF from jq on some platforms) —
+                                  # left in, it gets embedded straight into every URL built below
     [ -z "$alloc_id" ] && continue
     if [ "$LIMIT" -gt 0 ] && [ "$count" -ge "$LIMIT" ]; then
-      echo "  (LIMIT=$LIMIT reached for $dc, stopping this datacenter)"
+      log "  (LIMIT=$LIMIT reached for $dc, stopping this datacenter)"
       break
     fi
     count=$((count + 1))
-    echo "  -> $alloc_id"
+    log "  -> $alloc_id"
+    log_data "$dc / $alloc_id — START" ""
 
     layout_json=$(curl -s --max-time 30 "$BACKEND_URL/api/oasis/allocation/$alloc_id/layout")
+    log_data "$alloc_id — GET /api/oasis/allocation/$alloc_id/layout — response" "$layout_json"
     if ! echo "$layout_json" | jq -e . >/dev/null 2>&1; then
-      echo "     ERROR: layout fetch returned invalid/empty JSON — skipping"
+      log "     ERROR: layout fetch returned invalid/empty JSON — skipping"
       write_row "$dc" "$alloc_id" "" "ERROR: layout fetch failed"
       sleep "$SLEEP_BETWEEN"
       continue
     fi
 
     thermal_json=$(curl -s --max-time 30 "$BACKEND_URL/api/oasis/allocation/$alloc_id/thermal")
+    log_data "$alloc_id — GET /api/oasis/allocation/$alloc_id/thermal — response" "$thermal_json"
     if ! echo "$thermal_json" | jq -e . >/dev/null 2>&1; then
-      echo "     ERROR: thermal fetch returned invalid/empty JSON — skipping"
+      log "     ERROR: thermal fetch returned invalid/empty JSON — skipping"
       write_row "$dc" "$alloc_id" "" "ERROR: thermal fetch failed"
       sleep "$SLEEP_BETWEEN"
       continue
@@ -143,8 +177,10 @@ for dc in "${DATACENTERS[@]}"; do
         rowStats: $rowStats, topRisks: $topRisks
       }' 2>/dev/null)
 
+    log_data "$alloc_id — built request body for /api/analyze-simulation" "$body"
+
     if [ -z "$body" ]; then
-      echo "     ERROR: failed to build request body (see jq errors above) — skipping"
+      log "     ERROR: failed to build request body (see $LOGFILE for jq errors) — skipping"
       write_row "$dc" "$alloc_id" "$customer_name" "ERROR: request body build failed"
       sleep "$SLEEP_BETWEEN"
       continue
@@ -152,9 +188,10 @@ for dc in "${DATACENTERS[@]}"; do
 
     response=$(curl -s --max-time 120 -X POST "$BACKEND_URL/api/analyze-simulation" \
       -H "Content-Type: application/json" -d "$body")
+    log_data "$alloc_id — POST /api/analyze-simulation — response" "$response"
 
     if ! echo "$response" | jq -e . >/dev/null 2>&1; then
-      echo "     ERROR: analyze-simulation returned invalid/empty JSON — skipping"
+      log "     ERROR: analyze-simulation returned invalid/empty JSON — skipping"
       write_row "$dc" "$alloc_id" "$customer_name" "ERROR: invalid API response"
       sleep "$SLEEP_BETWEEN"
       continue
@@ -175,7 +212,9 @@ for dc in "${DATACENTERS[@]}"; do
       else
         compliance_status="PARSE_ERROR: heading not found in response (check prompt/heading text still matches)"
       fi
-      echo "     WARNING: $compliance_status"
+      log "     WARNING: $compliance_status"
+    else
+      log "     compliance_status: $compliance_status"
     fi
 
     write_row "$dc" "$alloc_id" "$customer_name" "$compliance_status"
@@ -183,4 +222,4 @@ for dc in "${DATACENTERS[@]}"; do
   done <<< "$alloc_ids"
 done
 
-echo "Done. Results in $OUTFILE"
+log "Done. Results in $OUTFILE, full debug log in $LOGFILE"
