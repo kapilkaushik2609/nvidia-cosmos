@@ -1,212 +1,399 @@
-import { useState, useEffect, useRef } from 'react';
-import styles from './SimulationPanel.module.css';
-
-const RACK_LAYOUT = [
-  {rack_id:"RACK-001",row:1,position_ft:{x:17,y:12}},{rack_id:"RACK-002",row:1,position_ft:{x:19,y:12}},
-  {rack_id:"RACK-003",row:1,position_ft:{x:21,y:12}},{rack_id:"RACK-004",row:1,position_ft:{x:23,y:12}},
-  {rack_id:"RACK-005",row:1,position_ft:{x:25,y:12}},{rack_id:"RACK-006",row:1,position_ft:{x:27,y:12}},
-  {rack_id:"RACK-007",row:1,position_ft:{x:29,y:12}},{rack_id:"RACK-008",row:1,position_ft:{x:31,y:12}},
-  {rack_id:"RACK-009",row:1,position_ft:{x:33,y:12}},{rack_id:"RACK-010",row:1,position_ft:{x:35,y:12}},
-  {rack_id:"RACK-011",row:1,position_ft:{x:37,y:12}},{rack_id:"RACK-012",row:1,position_ft:{x:39,y:12}},
-  {rack_id:"RACK-013",row:1,position_ft:{x:41,y:12}},{rack_id:"RACK-014",row:1,position_ft:{x:43,y:12}},
-  {rack_id:"RACK-015",row:1,position_ft:{x:45,y:12}},{rack_id:"RACK-016",row:1,position_ft:{x:47,y:12}},
-  {rack_id:"RACK-017",row:1,position_ft:{x:49,y:12}},{rack_id:"RACK-018",row:1,position_ft:{x:51,y:12}},
-  {rack_id:"RACK-019",row:2,position_ft:{x:17,y:20}},{rack_id:"RACK-020",row:2,position_ft:{x:19,y:20}},
-  {rack_id:"RACK-021",row:2,position_ft:{x:21,y:20}},{rack_id:"RACK-022",row:2,position_ft:{x:23,y:20}},
-  {rack_id:"RACK-023",row:2,position_ft:{x:25,y:20}},{rack_id:"RACK-024",row:2,position_ft:{x:27,y:20}},
-  {rack_id:"RACK-025",row:2,position_ft:{x:29,y:20}},{rack_id:"RACK-026",row:2,position_ft:{x:31,y:20}},
-  {rack_id:"RACK-027",row:2,position_ft:{x:33,y:20}},{rack_id:"RACK-028",row:2,position_ft:{x:35,y:20}},
-  {rack_id:"RACK-029",row:2,position_ft:{x:37,y:20}},{rack_id:"RACK-030",row:2,position_ft:{x:39,y:20}},
-  {rack_id:"RACK-031",row:2,position_ft:{x:41,y:20}},{rack_id:"RACK-032",row:2,position_ft:{x:43,y:20}},
-  {rack_id:"RACK-033",row:2,position_ft:{x:45,y:20}},{rack_id:"RACK-034",row:2,position_ft:{x:47,y:20}},
-  {rack_id:"RACK-035",row:2,position_ft:{x:49,y:20}},
-  {rack_id:"RACK-036",row:3,position_ft:{x:17,y:30}},{rack_id:"RACK-037",row:3,position_ft:{x:19,y:30}},
-  {rack_id:"RACK-038",row:3,position_ft:{x:21,y:30}},{rack_id:"RACK-039",row:3,position_ft:{x:23,y:30}},
-  {rack_id:"RACK-040",row:3,position_ft:{x:25,y:30}},{rack_id:"RACK-041",row:3,position_ft:{x:27,y:30}},
-  {rack_id:"RACK-042",row:3,position_ft:{x:29,y:30}},{rack_id:"RACK-043",row:3,position_ft:{x:31,y:30}},
-  {rack_id:"RACK-044",row:3,position_ft:{x:33,y:30}},{rack_id:"RACK-045",row:3,position_ft:{x:35,y:30}},
-  {rack_id:"RACK-046",row:3,position_ft:{x:37,y:30}},{rack_id:"RACK-047",row:3,position_ft:{x:39,y:30}},
-  {rack_id:"RACK-048",row:3,position_ft:{x:41,y:30}},{rack_id:"RACK-049",row:3,position_ft:{x:43,y:30}},
-  {rack_id:"RACK-050",row:3,position_ft:{x:45,y:30}},{rack_id:"RACK-051",row:3,position_ft:{x:47,y:30}},
-  {rack_id:"RACK-052",row:3,position_ft:{x:49,y:30}},
-];
+import { useState, useEffect, useRef } from "react";
+import styles from "./SimulationPanel.module.css";
 
 // Extract simOpts from the configuration section of the layout API response.
 // Response: { success, data: { configuration: { rack_specs:{count,power_per_rack_kw}, num_rows, it_load_kw }, racks:[...] } }
-function parseLayoutConfig(data){
-  const payload=data?.data??data;
-  const cfg=payload?.configuration??null;
-  if(!cfg?.rack_specs?.count) return null;
-  const specs=cfg.rack_specs;
+function parseLayoutConfig(data) {
+  const payload = data?.data ?? data;
+  const cfg = payload?.configuration ?? null;
+  if (!cfg?.rack_specs?.count) return null;
+  const specs = cfg.rack_specs;
   return {
-    count:    specs.count,
-    numRows:  cfg.num_rows??3,
-    peakKW:   specs.power_per_rack_kw??PEAK_KW,
-    designKW: cfg.it_load_kw??DESIGN_KW,
-    idleKW:   specs.idle_kw_per_rack ?? (Math.round(specs.power_per_rack_kw*0.22*10)/10 || IDLE_KW),
+    count: specs.count,
+    numRows: cfg.num_rows ?? 3,
+    peakKW: specs.power_per_rack_kw ?? PEAK_KW,
+    designKW: cfg.it_load_kw ?? DESIGN_KW,
+    idleKW:
+      specs.idle_kw_per_rack ??
+      (Math.round(specs.power_per_rack_kw * 0.22 * 10) / 10 || IDLE_KW),
+    customerName: cfg.customer_name ?? null,
+    allocationId: cfg.allocation_id ?? null,
+    widthFt: cfg.alloc_width_ft ?? null,
+    lengthFt: cfg.alloc_length_ft ?? null,
   };
 }
 
 // Extract individual rack positions from the layout API response.
 // Uses tile_x / tile_y which are display-safe half-tile grid coordinates.
 // Response shape: { data: { racks: [{ id, row, tile_x, tile_y, x, y, power_kw, ... }] } }
-function extractRackLayout(data){
-  const payload=data?.data??data;
-  const rawRacks=Array.isArray(payload?.layout_elements)?payload.layout_elements
-    :Array.isArray(payload?.racks)?payload.racks
-    :Array.isArray(payload?.rack_list)?payload.rack_list
-    :Array.isArray(payload?.components)?payload.components
-    :[];
-  const racks=rawRacks.filter(r=>r&&(r.id||r.rack_id));
-  if(!racks.length) return null;
+function extractRackLayout(data) {
+  const payload = data?.data ?? data;
+  const rawRacks = Array.isArray(payload?.layout_elements)
+    ? payload.layout_elements
+    : Array.isArray(payload?.racks)
+      ? payload.racks
+      : Array.isArray(payload?.rack_list)
+        ? payload.rack_list
+        : Array.isArray(payload?.components)
+          ? payload.components
+          : [];
+  const racks = rawRacks.filter((r) => r && (r.id || r.rack_id));
+  if (!racks.length) return null;
   console.log(`[layout] ${racks.length} individual rack positions from API`);
-  return racks.map(r=>({
-    rack_id: r.id??r.rack_id,
-    row:     r.row??1,
+  return racks.map((r) => ({
+    rack_id: r.id ?? r.rack_id,
+    row: r.row ?? 1,
     // tile_x / tile_y are half-tile coords (~2ft per tile), safe for SVG display
     // fallback: halve the raw x/y feet coords so they also fit
-    position_ft:{
-      x: r.tile_x!=null ? r.tile_x : Math.max(1, Math.round((r.x??34)/2)),
-      y: r.tile_y!=null ? r.tile_y : Math.max(1, Math.round((r.y??24)/2)),
+    position_ft: {
+      x: r.tile_x != null ? r.tile_x : Math.max(1, Math.round((r.x ?? 34) / 2)),
+      y: r.tile_y != null ? r.tile_y : Math.max(1, Math.round((r.y ?? 24) / 2)),
     },
   }));
 }
 
 // Build display layout from thermal component data (preserves real rack IDs for baseline matching)
 // numRows from the layout config controls row distribution; falls back to 3 rows
-function buildLayoutFromThermal(rackItems, numRows=3){
-  const sorted=[...rackItems].sort((a,b)=>a.id.localeCompare(b.id,undefined,{numeric:true}));
-  const n=sorted.length;
-  const ROW_Y=[12,20,30,38];
+function buildLayoutFromThermal(rackItems, numRows = 3) {
+  const sorted = [...rackItems].sort((a, b) =>
+    a.id.localeCompare(b.id, undefined, { numeric: true }),
+  );
+  const n = sorted.length;
+  const ROW_Y = [12, 20, 30, 38];
   // Distribute as evenly as possible across numRows rows
-  const perRow=Math.ceil(n/numRows);
-  const layout=[]; let idx=0;
-  for(let row=0;row<numRows;row++){
-    const rowCount=Math.min(perRow, n-idx);
-    for(let i=0;i<rowCount;i++){
-      layout.push({rack_id:sorted[idx].id, row:row+1, position_ft:{x:17+i*2, y:ROW_Y[row]??12}});
+  const perRow = Math.ceil(n / numRows);
+  const layout = [];
+  let idx = 0;
+  for (let row = 0; row < numRows; row++) {
+    const rowCount = Math.min(perRow, n - idx);
+    for (let i = 0; i < rowCount; i++) {
+      layout.push({
+        rack_id: sorted[idx].id,
+        row: row + 1,
+        position_ft: { x: 17 + i * 2, y: ROW_Y[row] ?? 12 },
+      });
       idx++;
     }
-    if(idx>=n) break;
+    if (idx >= n) break;
   }
   return layout;
 }
 
-const IDLE_KW=4.0,PEAK_KW=18.0,AMBIENT_C=18.0,TEMP_PER_KW=0.969,DESIGN_KW=375;
-const ROW_FACTORS={1:1.000,2:1.002,3:1.004};
-const ASHRAE_REC=27.0,ASHRAE_ALLOW=32.0;
-const RISK_COLOR={SAFE:'#76b900',WARNING:'#f5a623',CRITICAL:'#ff2200',UNKNOWN:'#555'};
+const IDLE_KW = 4.0,
+  PEAK_KW = 18.0,
+  AMBIENT_C = 18.0,
+  TEMP_PER_KW = 0.969,
+  DESIGN_KW = 375;
+const ROW_FACTORS = { 1: 1.0, 2: 1.002, 3: 1.004 };
+const ASHRAE_REC = 27.0,
+  ASHRAE_ALLOW = 32.0;
+const RISK_COLOR = {
+  SAFE: "#76b900",
+  WARNING: "#f5a623",
+  CRITICAL: "#ff2200",
+  UNKNOWN: "#555",
+};
 
-const SCENARIOS=[
-  {label:'Current',      globalLoad:0.49,coolingOk:true, desc:'Baseline — 565 kW mean from sensor data'},
-  {label:'Low (Night)',  globalLoad:0.20,coolingOk:true, desc:'Low-load night-time batch window'},
-  {label:'High Load',    globalLoad:0.70,coolingOk:true, desc:'Busy period — 70% utilisation'},
-  {label:'Peak',         globalLoad:1.00,coolingOk:true, desc:'Full peak — 18 kW/rack capacity'},
-  {label:'Cooling Fault',globalLoad:0.49,coolingOk:false,desc:'N+1 failure — 50% cooling capacity'},
+const SCENARIOS = [
+  {
+    label: "Current",
+    globalLoad: 0.49,
+    coolingOk: true,
+    desc: "Baseline — 565 kW mean from sensor data",
+  },
+  {
+    label: "Low (Night)",
+    globalLoad: 0.2,
+    coolingOk: true,
+    desc: "Low-load night-time batch window",
+  },
+  {
+    label: "High Load",
+    globalLoad: 0.7,
+    coolingOk: true,
+    desc: "Busy period — 70% utilisation",
+  },
+  {
+    label: "Peak",
+    globalLoad: 1.0,
+    coolingOk: true,
+    desc: "Full peak — 18 kW/rack capacity",
+  },
+  {
+    label: "Cooling Fault",
+    globalLoad: 0.49,
+    coolingOk: false,
+    desc: "N+1 failure — 50% cooling capacity",
+  },
 ];
 
-function tempColor(t){
-  const stops=[[18,[40,120,255]],[22,[0,200,180]],[24,[60,200,80]],[27,[200,220,0]],[29,[255,150,0]],[31,[255,50,0]],[33,[200,0,0]]];
-  t=Math.max(stops[0][0],Math.min(stops[stops.length-1][0],t));
-  for(let i=0;i<stops.length-1;i++){
-    const[t0,c0]=stops[i],[t1,c1]=stops[i+1];
-    if(t>=t0&&t<=t1){const r=(t-t0)/(t1-t0);return `rgb(${c0.map((v,j)=>Math.round(v+(c1[j]-v)*r)).join(',')})`;}
+function tempColor(t) {
+  const stops = [
+    [18, [40, 120, 255]],
+    [22, [0, 200, 180]],
+    [24, [60, 200, 80]],
+    [27, [200, 220, 0]],
+    [29, [255, 150, 0]],
+    [31, [255, 50, 0]],
+    [33, [200, 0, 0]],
+  ];
+  t = Math.max(stops[0][0], Math.min(stops[stops.length - 1][0], t));
+  for (let i = 0; i < stops.length - 1; i++) {
+    const [t0, c0] = stops[i],
+      [t1, c1] = stops[i + 1];
+    if (t >= t0 && t <= t1) {
+      const r = (t - t0) / (t1 - t0);
+      return `rgb(${c0.map((v, j) => Math.round(v + (c1[j] - v) * r)).join(",")})`;
+    }
   }
-  return 'red';
+  return "red";
 }
 
 // baseline: Map of rack_id → { temp_c, power_kw } from thermal_overlay.json
 // opts:     { idleKW, peakKW, designKW } — overrides module constants when loaded from API
 // When baseline loaded: temp = baseline_temp + (simulated_power - baseline_power) × physics_delta
 // When null:            falls back to pure formula from AMBIENT_C
-function simulate(rowOverrides,globalLoad,coolingOk,baseline,opts={},layout=RACK_LAYOUT){
-  const idleKw  = opts.idleKW  ?? IDLE_KW;
-  const peakKw  = opts.peakKW  ?? PEAK_KW;
-  const designKw= opts.designKW?? DESIGN_KW;
-  const coolDerate=coolingOk?1.0:2.0;
-  const rackLoads=layout.map(r=>{
-    const load=Math.max(0,Math.min(1,rowOverrides[r.row]??globalLoad));
-    return{...r,power_kw:idleKw+(peakKw-idleKw)*load,load_pct:load};
+function simulate(
+  rowOverrides,
+  globalLoad,
+  coolingOk,
+  baseline,
+  opts = {},
+  layout = [],
+) {
+  const idleKw = opts.idleKW ?? IDLE_KW;
+  const peakKw = opts.peakKW ?? PEAK_KW;
+  const designKw = opts.designKW ?? DESIGN_KW;
+  const coolDerate = coolingOk ? 1.0 : 2.0;
+  const rackLoads = layout.map((r) => {
+    const load = Math.max(0, Math.min(1, rowOverrides[r.row] ?? globalLoad));
+    return {
+      ...r,
+      power_kw: idleKw + (peakKw - idleKw) * load,
+      load_pct: load,
+    };
   });
-  const totalKW=rackLoads.reduce((s,r)=>s+r.power_kw,0);
-  const overloadFactor=Math.max(1,totalKW/designKw);
-  const results=rackLoads.map(r=>{
-    const rf=ROW_FACTORS[r.row]??1.0;
-    const base=baseline?.[r.rack_id];
+  const totalKW = rackLoads.reduce((s, r) => s + r.power_kw, 0);
+  const overloadFactor = Math.max(1, totalKW / designKw);
+  const results = rackLoads.map((r) => {
+    const rf = ROW_FACTORS[r.row] ?? 1.0;
+    const base = baseline?.[r.rack_id];
     let temp;
-    if(base){
+    if (base) {
       // Real sensor baseline (thermal_overlay.json) + physics delta from that point
-      const powerDelta=r.power_kw-base.power_kw;
-      temp=base.temp_c+(powerDelta*TEMP_PER_KW*rf*overloadFactor*coolDerate);
+      const powerDelta = r.power_kw - base.power_kw;
+      temp =
+        base.temp_c +
+        powerDelta * TEMP_PER_KW * rf * overloadFactor * coolDerate;
     } else {
       // Pure formula fallback — no baseline loaded yet
-      temp=AMBIENT_C+(r.power_kw-IDLE_KW)*TEMP_PER_KW*rf*overloadFactor*coolDerate;
+      temp =
+        AMBIENT_C +
+        (r.power_kw - IDLE_KW) * TEMP_PER_KW * rf * overloadFactor * coolDerate;
     }
-    return{...r,temp_c:temp,ashrae_rec:temp<=ASHRAE_REC,ashrae_allow:temp<=ASHRAE_ALLOW};
+    return {
+      ...r,
+      temp_c: temp,
+      ashrae_rec: temp <= ASHRAE_REC,
+      ashrae_allow: temp <= ASHRAE_ALLOW,
+    };
   });
-  const maxTemp=Math.max(...results.map(r=>r.temp_c));
-  const violations=results.filter(r=>!r.ashrae_rec).length;
-  const critical=results.filter(r=>!r.ashrae_allow).length;
-  const pue=coolingOk?(1+0.4*Math.min(1,totalKW/designKw)):2.1;
-  return{racks:results,totalKW,maxTemp,violations,critical,pue,facilKW:totalKW*pue};
+  const maxTemp = results.length
+    ? Math.max(...results.map((r) => r.temp_c))
+    : 0;
+  const violations = results.filter((r) => !r.ashrae_rec).length;
+  const critical = results.filter((r) => !r.ashrae_allow).length;
+  const pue = coolingOk ? 1 + 0.4 * Math.min(1, totalKW / designKw) : 2.1;
+  return {
+    racks: results,
+    totalKW,
+    maxTemp,
+    violations,
+    critical,
+    pue,
+    facilKW: totalKW * pue,
+  };
 }
 
-const SVG_W=560,SVG_H=310,SX=SVG_W/70,SY=SVG_H/40;
-const RW=2*SX-3,RH=4*SY-3;
+const SVG_W = 560,
+  SVG_H = 310,
+  SX = SVG_W / 70,
+  SY = SVG_H / 40;
+const RW = 2 * SX - 3,
+  RH = 4 * SY - 3;
 
-function FloorPlan({racks,hovered,onHover,cosmosRisk}){
-  const rowRisk=cosmosRisk?{1:cosmosRisk.row1,2:cosmosRisk.row2,3:cosmosRisk.row3}:{};
-  return(
-    <svg viewBox={`0 0 ${SVG_W} ${SVG_H}`} className={styles.floorSvg} preserveAspectRatio="xMidYMid meet">
+function FloorPlan({ racks, hovered, onHover, cosmosRisk }) {
+  const rowRisk = cosmosRisk
+    ? { 1: cosmosRisk.row1, 2: cosmosRisk.row2, 3: cosmosRisk.row3 }
+    : {};
+  return (
+    <svg
+      viewBox={`0 0 ${SVG_W} ${SVG_H}`}
+      className={styles.floorSvg}
+      preserveAspectRatio="xMidYMid meet"
+    >
       <defs>
-        <filter id="glow-warn"><feGaussianBlur stdDeviation="2" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-        <filter id="glow-crit"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+        <filter id="glow-warn">
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+        <filter id="glow-crit">
+          <feGaussianBlur stdDeviation="3" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
       </defs>
-      <rect x={0} y={0} width={SVG_W} height={SVG_H} fill="#07070f" rx={6}/>
-      {[10,20,30,40,50,60].map(x=><line key={`gx${x}`} x1={x*SX} y1={0} x2={x*SX} y2={SVG_H} stroke="#141422" strokeWidth={1}/>)}
-      {[10,20,30].map(y=><line key={`gy${y}`} x1={0} y1={y*SY} x2={SVG_W} y2={y*SY} stroke="#141422" strokeWidth={1}/>)}
+      <rect x={0} y={0} width={SVG_W} height={SVG_H} fill="#07070f" rx={6} />
+      {[10, 20, 30, 40, 50, 60].map((x) => (
+        <line
+          key={`gx${x}`}
+          x1={x * SX}
+          y1={0}
+          x2={x * SX}
+          y2={SVG_H}
+          stroke="#141422"
+          strokeWidth={1}
+        />
+      ))}
+      {[10, 20, 30].map((y) => (
+        <line
+          key={`gy${y}`}
+          x1={0}
+          y1={y * SY}
+          x2={SVG_W}
+          y2={y * SY}
+          stroke="#141422"
+          strokeWidth={1}
+        />
+      ))}
 
       {/* Cosmos risk row bands */}
-      {cosmosRisk && [1,2,3].map(row=>{
-        const risk=rowRisk[row];
-        if(!risk||risk==='SAFE'||risk==='UNKNOWN') return null;
-        const rowR=racks.find(r=>r.row===row);
-        if(!rowR) return null;
-        const py=rowR.position_ft.y*SY-1;
-        const col=risk==='CRITICAL'?'#ff220022':'#f5a62318';
-        const stroke=risk==='CRITICAL'?'#ff220066':'#f5a62344';
-        return(
-          <rect key={`band-${row}`} x={16*SX} y={py} width={36*SX} height={RH+2}
-            fill={col} stroke={stroke} strokeWidth={1} rx={3}
-            className={risk==='CRITICAL'?styles.criticalBand:styles.warningBand}/>
-        );
-      })}
+      {cosmosRisk &&
+        [1, 2, 3].map((row) => {
+          const risk = rowRisk[row];
+          if (!risk || risk === "SAFE" || risk === "UNKNOWN") return null;
+          const rowR = racks.find((r) => r.row === row);
+          if (!rowR) return null;
+          const py = rowR.position_ft.y * SY - 1;
+          const col = risk === "CRITICAL" ? "#ff220022" : "#f5a62318";
+          const stroke = risk === "CRITICAL" ? "#ff220066" : "#f5a62344";
+          return (
+            <rect
+              key={`band-${row}`}
+              x={16 * SX}
+              y={py}
+              width={36 * SX}
+              height={RH + 2}
+              fill={col}
+              stroke={stroke}
+              strokeWidth={1}
+              rx={3}
+              className={
+                risk === "CRITICAL" ? styles.criticalBand : styles.warningBand
+              }
+            />
+          );
+        })}
 
       {/* Racks */}
-      {racks.map(r=>{
-        const px=r.position_ft.x*SX,py=r.position_ft.y*SY;
-        const col=tempColor(r.temp_c),isHov=hovered===r.rack_id;
-        const risk=rowRisk[r.row];
-        const sc=isHov?'#fff':(!r.ashrae_allow?'#ff2200':!r.ashrae_rec?'#ff8800':'#000');
-        const filter=risk==='CRITICAL'?'url(#glow-crit)':risk==='WARNING'?'url(#glow-warn)':undefined;
-        return(
-          <g key={r.rack_id} style={{cursor:'pointer'}} onMouseEnter={()=>onHover(r.rack_id)} onMouseLeave={()=>onHover(null)}>
-            <rect x={px} y={py} width={RW} height={RH} fill={col} stroke={sc} strokeWidth={isHov?2:0.5} rx={1} opacity={0.92} filter={filter}/>
-            {isHov&&<><rect x={px-2} y={py-18} width={44} height={15} fill="#000a" rx={3}/><text x={px+RW/2} y={py-7} textAnchor="middle" fontSize={8} fill="#fff" fontWeight="bold">{r.rack_id} {r.temp_c.toFixed(1)}°C</text></>}
+      {racks.map((r) => {
+        const px = r.position_ft.x * SX,
+          py = r.position_ft.y * SY;
+        const col = tempColor(r.temp_c),
+          isHov = hovered === r.rack_id;
+        const risk = rowRisk[r.row];
+        const sc = isHov
+          ? "#fff"
+          : !r.ashrae_allow
+            ? "#ff2200"
+            : !r.ashrae_rec
+              ? "#ff8800"
+              : "#000";
+        const filter =
+          risk === "CRITICAL"
+            ? "url(#glow-crit)"
+            : risk === "WARNING"
+              ? "url(#glow-warn)"
+              : undefined;
+        return (
+          <g
+            key={r.rack_id}
+            style={{ cursor: "pointer" }}
+            onMouseEnter={() => onHover(r.rack_id)}
+            onMouseLeave={() => onHover(null)}
+          >
+            <rect
+              x={px}
+              y={py}
+              width={RW}
+              height={RH}
+              fill={col}
+              stroke={sc}
+              strokeWidth={isHov ? 2 : 0.5}
+              rx={1}
+              opacity={0.92}
+              filter={filter}
+            />
+            {isHov && (
+              <>
+                <rect
+                  x={px - 2}
+                  y={py - 18}
+                  width={44}
+                  height={15}
+                  fill="#000a"
+                  rx={3}
+                />
+                <text
+                  x={px + RW / 2}
+                  y={py - 7}
+                  textAnchor="middle"
+                  fontSize={8}
+                  fill="#fff"
+                  fontWeight="bold"
+                >
+                  {r.rack_id} {r.temp_c.toFixed(1)}°C
+                </text>
+              </>
+            )}
           </g>
         );
       })}
 
       {/* Row labels + Cosmos risk badges */}
-      {[1,2,3].map(row=>{
-        const r=racks.find(r=>r.row===row);
-        const risk=rowRisk[row];
-        if(!r) return null;
-        return(
+      {[1, 2, 3].map((row) => {
+        const r = racks.find((r) => r.row === row);
+        const risk = rowRisk[row];
+        if (!r) return null;
+        return (
           <g key={row}>
-            <text x={r.position_ft.x*SX-14} y={r.position_ft.y*SY+RH/2+3} fontSize={8} fill="#555" fontFamily="monospace" textAnchor="end">R{row}</text>
-            {risk&&risk!=='UNKNOWN'&&(
-              <text x={r.position_ft.x*SX-14} y={r.position_ft.y*SY+RH/2+13} fontSize={6} fill={RISK_COLOR[risk]} fontFamily="monospace" textAnchor="end" fontWeight="bold">{risk}</text>
+            <text
+              x={r.position_ft.x * SX - 14}
+              y={r.position_ft.y * SY + RH / 2 + 3}
+              fontSize={8}
+              fill="#555"
+              fontFamily="monospace"
+              textAnchor="end"
+            >
+              R{row}
+            </text>
+            {risk && risk !== "UNKNOWN" && (
+              <text
+                x={r.position_ft.x * SX - 14}
+                y={r.position_ft.y * SY + RH / 2 + 13}
+                fontSize={6}
+                fill={RISK_COLOR[risk]}
+                fontFamily="monospace"
+                textAnchor="end"
+                fontWeight="bold"
+              >
+                {risk}
+              </text>
             )}
           </g>
         );
@@ -215,264 +402,551 @@ function FloorPlan({racks,hovered,onHover,cosmosRisk}){
   );
 }
 
-export default function SimulationPanel(){
-  const[globalLoad,setGlobalLoad]=useState(0.49);
-  const[rowOverrides,setRowOverrides]=useState({});
-  const[coolingOk,setCoolingOk]=useState(true);
-  const[hovered,setHovered]=useState(null);
-  const[scenario,setScenario]=useState(0);
+export default function SimulationPanel() {
+  const [globalLoad, setGlobalLoad] = useState(0.49);
+  const [rowOverrides, setRowOverrides] = useState({});
+  const [coolingOk, setCoolingOk] = useState(true);
+  const [hovered, setHovered] = useState(null);
+  const [scenario, setScenario] = useState(0);
 
   // Cosmos full analysis — compliance mode
-  const[compResult,setCompResult]=useState('');
-  const[compLoading,setCompLoading]=useState(false);
-  const[compError,setCompError]=useState('');
-  const[compUsedImage,setCompUsedImage]=useState(false);
+  const [compResult, setCompResult] = useState("");
+  const [compLoading, setCompLoading] = useState(false);
+  const [compError, setCompError] = useState("");
+  const [compUsedImage, setCompUsedImage] = useState(false);
 
   // Cosmos full analysis — physics/CFD mode
-  const[physResult,setPhysResult]=useState('');
-  const[physLoading,setPhysLoading]=useState(false);
-  const[physError,setPhysError]=useState('');
-  const[physUsedImage,setPhysUsedImage]=useState(false);
+  const [physResult, setPhysResult] = useState("");
+  const [physLoading, setPhysLoading] = useState(false);
+  const [physError, setPhysError] = useState("");
+  const [physUsedImage, setPhysUsedImage] = useState(false);
 
   // Allocation selector — list from OASIS API + currently selected allocation
-  const DEFAULT_ALLOC='20230123-225659-UTC_DFW_375_2800_STD';
-  const[allocations,setAllocations]=useState([]);
-  const[selectedAlloc,setSelectedAlloc]=useState(DEFAULT_ALLOC);
-  const[allocLoading,setAllocLoading]=useState(false);
-  const[simOpts,setSimOpts]=useState({});  // {idleKW, peakKW, designKW} from API metadata
+  // Each allocation is one customer's leased space within this shared datacenter facility.
+  const DATACENTER = "CHI1-CHI3";
+  const DEFAULT_ALLOC = "20230123-225659-UTC_DFW_375_2800_STD";
+  const [allocations, setAllocations] = useState([]);
+  const [selectedAlloc, setSelectedAlloc] = useState(DEFAULT_ALLOC);
+  const [allocLoading, setAllocLoading] = useState(false);
+  const [simOpts, setSimOpts] = useState({}); // {idleKW, peakKW, designKW} from API metadata
 
   // Fetch allocation list once on mount
-  useEffect(()=>{
-    fetch('/api/oasis/allocations/CHI1-CHI3')
-      .then(r=>r.json())
-      .then(data=>{
+  useEffect(() => {
+    fetch(`/api/oasis/allocations/${DATACENTER}`)
+      .then((r) => r.json())
+      .then((data) => {
         // API returns array of { allocationId, customerName, status } objects
-        const raw=Array.isArray(data)?data:(data.allocations||data.data||[]);
+        const raw = Array.isArray(data)
+          ? data
+          : data.allocations || data.data || [];
         // Normalise to objects with at minimum { allocationId, label }
-        const list=raw.map(item=>
-          typeof item==='string'
-            ? { allocationId: item, label: item }
-            : { allocationId: item.allocationId, label: item.customerName ? `${item.allocationId} — ${item.customerName}` : item.allocationId }
-        ).filter(item=>item.allocationId);
-        if(list.length) setAllocations(list);
+        const list = raw
+          .map((item) =>
+            typeof item === "string"
+              ? { allocationId: item, label: item }
+              : {
+                  allocationId: item.allocationId,
+                  label: item.customerName
+                    ? `${item.allocationId} — ${item.customerName}`
+                    : item.allocationId,
+                },
+          )
+          .filter((item) => item.allocationId);
+        if (list.length) setAllocations(list);
       })
-      .catch(()=>{}); // silently ignore — selector just won't show other options
-  },[]);
+      .catch(() => {}); // silently ignore — selector just won't show other options
+  }, []);
 
   // Real sensor baseline — loaded from OASIS API
-  const[baseline,setBaseline]=useState(null);        // Map: rack_id → {temp_c, power_kw}
-  const[baselineStatus,setBaselineStatus]=useState('loading'); // 'loading'|'loaded'|'error'
-  const[rackLayout,setRackLayout]=useState(RACK_LAYOUT); // dynamic layout from API racks
+  const [baseline, setBaseline] = useState(null); // Map: rack_id → {temp_c, power_kw}
+  const [baselineStatus, setBaselineStatus] = useState("loading"); // 'loading'|'loaded'|'error'
+  // No fake starting layout — stays empty until the real allocation layout loads,
+  // so the UI never shows a fabricated rack grid that isn't this allocation's own.
+  const [rackLayout, setRackLayout] = useState([]);
+  const [layoutError, setLayoutError] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
-  useEffect(()=>{
-    setBaselineStatus('loading');
+  useEffect(() => {
+    setBaselineStatus("loading");
     setAllocLoading(true);
+    setLayoutError(false);
+    setRackLayout([]);
 
     // Holds thermal racks so layout fallback can use them
-    let thermalRacks=[];
+    let thermalRacks = [];
 
-    const loadThermal=(data)=>{
-      thermalRacks=(data.component_temperatures||[]).filter(c=>c.type==='rack');
-      const map={};
-      thermalRacks.forEach(c=>{ map[c.id]={temp_c:c.temperature_c,power_kw:c.power_kw,severity:c.severity}; });
+    const loadThermal = (data) => {
+      thermalRacks = (data.component_temperatures || []).filter(
+        (c) => c.type === "rack",
+      );
+      const map = {};
+      thermalRacks.forEach((c) => {
+        map[c.id] = {
+          temp_c: c.temperature_c,
+          power_kw: c.power_kw,
+          severity: c.severity,
+        };
+      });
       setBaseline(map);
-      setBaselineStatus('loaded');
+      setBaselineStatus("loaded");
     };
 
     // 1. Fetch 2D layout — individual rack positions + config spec
     //    API: { success, data: { racks:[{id,row,tile_x,tile_y,...}], configuration:{...}, aisles:[...] } }
     let layoutNumRows = 3;
     const layoutPromise = fetch(`/api/oasis/allocation/${selectedAlloc}/layout`)
-      .then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
-      .then(data=>{
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
         // Extract simOpts from configuration section
         const cfg = parseLayoutConfig(data);
-        if(cfg){
+        if (cfg) {
           layoutNumRows = cfg.numRows;
-          setSimOpts({ idleKW: cfg.idleKW, peakKW: cfg.peakKW, designKW: cfg.designKW });
-          console.log(`[layout] config: count=${cfg.count} rows=${cfg.numRows} peakKW=${cfg.peakKW} designKW=${cfg.designKW}`);
+          setSimOpts({
+            idleKW: cfg.idleKW,
+            peakKW: cfg.peakKW,
+            designKW: cfg.designKW,
+            rackCount: cfg.count,
+            numRows: cfg.numRows,
+            customerName: cfg.customerName,
+            widthFt: cfg.widthFt,
+            lengthFt: cfg.lengthFt,
+          });
+          console.log(
+            `[layout] config: count=${cfg.count} rows=${cfg.numRows} peakKW=${cfg.peakKW} designKW=${cfg.designKW}`,
+          );
         }
         // Extract individual rack positions (real IDs + real coordinates)
         const layout = extractRackLayout(data);
-        if(layout && layout.length > 0){
+        if (layout && layout.length > 0) {
           setRackLayout(layout);
           return true; // real positions set — skip thermal fallback
         }
-        console.warn('[layout] no rack positions found; will build from thermal data');
+        console.warn(
+          "[layout] no rack positions found; will build from thermal data",
+        );
         return false;
       })
-      .catch(err=>{ console.warn('[layout] fetch failed:', err.message); return false; });
+      .catch((err) => {
+        console.warn("[layout] fetch failed:", err.message);
+        return false;
+      });
 
     // 2. Fetch thermal baseline (temperatures + power per rack)
-    const thermalPromise = fetch(`/api/oasis/allocation/${selectedAlloc}/thermal`)
-      .then(r=>{ if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+    const thermalPromise = fetch(
+      `/api/oasis/allocation/${selectedAlloc}/thermal`,
+    )
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(loadThermal)
-      .catch(()=>setBaselineStatus('error'));
+      .catch(() => setBaselineStatus("error"));
 
     // If layout API had no rack positions, fall back to synthetic grid from thermal IDs
-    Promise.all([layoutPromise, thermalPromise]).then(([layoutOk])=>{
-      if(!layoutOk && thermalRacks.length > 0){
+    Promise.all([layoutPromise, thermalPromise]).then(([layoutOk]) => {
+      if (!layoutOk && thermalRacks.length > 0) {
         setRackLayout(buildLayoutFromThermal(thermalRacks, layoutNumRows));
+      } else if (!layoutOk) {
+        setLayoutError(true);
       }
       setAllocLoading(false);
     });
-  },[selectedAlloc]);
+  }, [selectedAlloc, retryTick]);
 
   // Cosmos live prediction mode
-  const[cosmosMode,setCosmosMode]=useState(false);
-  const[cosmosRisk,setCosmosRisk]=useState(null);   // {row1,row2,row3,maxTemp,hotspot,action}
-  const[cosmosThinking,setCosmosThinking]=useState(false);
-  const abortRef=useRef(null);
+  const [cosmosMode, setCosmosMode] = useState(false);
+  const [cosmosRisk, setCosmosRisk] = useState(null); // {row1,row2,row3,maxTemp,hotspot,action}
+  const [cosmosThinking, setCosmosThinking] = useState(false);
+  const abortRef = useRef(null);
 
-  const applyScenario=idx=>{setScenario(idx);setGlobalLoad(SCENARIOS[idx].globalLoad);setRowOverrides({});setCoolingOk(SCENARIOS[idx].coolingOk);};
-  const getRowLoad=row=>rowOverrides[row]??globalLoad;
-  const sim=simulate(rowOverrides,globalLoad,coolingOk,baseline,simOpts,rackLayout);
-  const hoveredRack=sim.racks.find(r=>r.rack_id===hovered);
+  const applyScenario = (idx) => {
+    setScenario(idx);
+    setGlobalLoad(SCENARIOS[idx].globalLoad);
+    setRowOverrides({});
+    setCoolingOk(SCENARIOS[idx].coolingOk);
+  };
+  const getRowLoad = (row) => rowOverrides[row] ?? globalLoad;
+  const sim = simulate(
+    rowOverrides,
+    globalLoad,
+    coolingOk,
+    baseline,
+    simOpts,
+    rackLayout,
+  );
+  const hoveredRack = sim.racks.find((r) => r.rack_id === hovered);
+
+  // Real allocation identity/specs — sent to Cosmos prompts instead of hardcoding a
+  // specific datacenter's numbers. customerName/allocationId identify the tenant
+  // allocation, not the shared datacenter facility (datacenterId) that hosts it.
+  // Falls back to the live rack layout when the layout API's configuration block
+  // didn't include specs.
+  const facility = {
+    datacenterId: DATACENTER,
+    allocationId: selectedAlloc,
+    customerName: simOpts.customerName || null,
+    rackCount: simOpts.rackCount || rackLayout.length,
+    numRows: simOpts.numRows || Math.max(1, ...rackLayout.map((r) => r.row)),
+    designKW: simOpts.designKW || DESIGN_KW,
+    peakKW: simOpts.peakKW || PEAK_KW,
+    idleKW: simOpts.idleKW || IDLE_KW,
+    widthFt: simOpts.widthFt || null,
+    lengthFt: simOpts.lengthFt || null,
+  };
 
   // Auto-predict: 1.5s after slider stops, if Cosmos mode is on
-  useEffect(()=>{
-    if(!cosmosMode) return;
-    const rowStats=[1,2,3].map(row=>{
-      const rr=sim.racks.filter(r=>r.row===row);
-      return{row,count:rr.length,avgTemp:rr.reduce((s,r)=>s+r.temp_c,0)/rr.length,violations:rr.filter(r=>!r.ashrae_rec).length};
+  useEffect(() => {
+    if (!cosmosMode) return;
+    const rowStats = [1, 2, 3].map((row) => {
+      const rr = sim.racks.filter((r) => r.row === row);
+      return {
+        row,
+        count: rr.length,
+        avgTemp: rr.reduce((s, r) => s + r.temp_c, 0) / rr.length,
+        violations: rr.filter((r) => !r.ashrae_rec).length,
+      };
     });
-    const topRisks=[...sim.racks].sort((a,b)=>b.temp_c-a.temp_c).slice(0,5);
+    const topRisks = [...sim.racks]
+      .sort((a, b) => b.temp_c - a.temp_c)
+      .slice(0, 5);
 
-    const timer=setTimeout(async()=>{
+    const timer = setTimeout(async () => {
       abortRef.current?.abort();
-      const ctrl=new AbortController();
-      abortRef.current=ctrl;
+      const ctrl = new AbortController();
+      abortRef.current = ctrl;
       setCosmosThinking(true);
-      try{
-        const res=await fetch('/api/predict-thermal',{
-          method:'POST',signal:ctrl.signal,
-          headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({totalKW:sim.totalKW,globalLoad,coolingOk,rowStats,topRisks}),
+      try {
+        const res = await fetch("/api/predict-thermal", {
+          method: "POST",
+          signal: ctrl.signal,
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            totalKW: sim.totalKW,
+            globalLoad,
+            coolingOk,
+            rowStats,
+            topRisks,
+            facility,
+          }),
         });
-        const data=await res.json();
-        if(data.prediction) setCosmosRisk(data.prediction);
-      }catch(e){
-        if(e.name!=='AbortError') console.warn('predict-thermal:',e.message);
+        const data = await res.json();
+        if (data.prediction) setCosmosRisk(data.prediction);
+      } catch (e) {
+        if (e.name !== "AbortError")
+          console.warn("predict-thermal:", e.message);
       }
       setCosmosThinking(false);
-    },1500);
-    return()=>{clearTimeout(timer);};
-  },[globalLoad,rowOverrides,coolingOk,cosmosMode]);
+    }, 1500);
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [globalLoad, rowOverrides, coolingOk, cosmosMode]);
 
   // Clear risk map when mode turned off
-  useEffect(()=>{ if(!cosmosMode){setCosmosRisk(null);abortRef.current?.abort();} },[cosmosMode]);
+  useEffect(() => {
+    if (!cosmosMode) {
+      setCosmosRisk(null);
+      abortRef.current?.abort();
+    }
+  }, [cosmosMode]);
 
-  const buildSimPayload=(mode)=>{
-    const rowStats=[1,2,3].map(row=>{
-      const rr=sim.racks.filter(r=>r.row===row);
-      return{row,count:rr.length,avgTemp:rr.reduce((s,r)=>s+r.temp_c,0)/rr.length,violations:rr.filter(r=>!r.ashrae_rec).length};
+  const buildSimPayload = (mode) => {
+    const rowStats = [1, 2, 3].map((row) => {
+      const rr = sim.racks.filter((r) => r.row === row);
+      return {
+        row,
+        count: rr.length,
+        avgTemp: rr.reduce((s, r) => s + r.temp_c, 0) / rr.length,
+        violations: rr.filter((r) => !r.ashrae_rec).length,
+      };
     });
-    const topRisks=[...sim.racks].sort((a,b)=>b.temp_c-a.temp_c).slice(0,8);
-    const scenarioLabel=scenario>=0?SCENARIOS[scenario]?.label:'Custom';
+    const topRisks = [...sim.racks]
+      .sort((a, b) => b.temp_c - a.temp_c)
+      .slice(0, 8);
+    const scenarioLabel = scenario >= 0 ? SCENARIOS[scenario]?.label : "Custom";
     // Include real baseline context when loaded so Cosmos can compare sim vs real
-    const baselineCtx=baseline ? {
-      hasRealBaseline:true,
-      baselineNote:'Temperatures are physics deltas from real thermal_overlay.json baseline (measured at 17.5 kW/rack)',
-      baselineRowAvg:[1,2,3].map(row=>{
-        const ids=rackLayout.filter(r=>r.row===row).map(r=>r.rack_id);
-        const vals=ids.map(id=>baseline[id]?.temp_c).filter(Boolean);
-        return{row,avgBaseline_c:vals.length?(vals.reduce((s,v)=>s+v,0)/vals.length).toFixed(1):null};
-      }),
-    } : {hasRealBaseline:false,baselineNote:'Formula-only — thermal_overlay.json not loaded'};
-    return{mode,allocationId:selectedAlloc,scenario:scenarioLabel,totalKW:sim.totalKW,facilKW:sim.facilKW,pue:sim.pue,maxTemp:sim.maxTemp,violations:sim.violations,critical:sim.critical,globalLoad,coolingOk,rowStats,topRisks,...baselineCtx};
+    const baselineCtx = baseline
+      ? {
+          hasRealBaseline: true,
+          baselineNote: `Temperatures are physics deltas from real thermal_overlay.json baseline (measured at ${(simOpts.peakKW || PEAK_KW).toFixed(1)} kW/rack)`,
+          baselineRowAvg: [1, 2, 3].map((row) => {
+            const ids = rackLayout
+              .filter((r) => r.row === row)
+              .map((r) => r.rack_id);
+            const vals = ids.map((id) => baseline[id]?.temp_c).filter(Boolean);
+            return {
+              row,
+              avgBaseline_c: vals.length
+                ? (vals.reduce((s, v) => s + v, 0) / vals.length).toFixed(1)
+                : null,
+            };
+          }),
+        }
+      : {
+          hasRealBaseline: false,
+          baselineNote: "Formula-only — thermal_overlay.json not loaded",
+        };
+    return {
+      mode,
+      allocationId: selectedAlloc,
+      facility,
+      scenario: scenarioLabel,
+      totalKW: sim.totalKW,
+      facilKW: sim.facilKW,
+      pue: sim.pue,
+      maxTemp: sim.maxTemp,
+      violations: sim.violations,
+      critical: sim.critical,
+      globalLoad,
+      coolingOk,
+      rowStats,
+      topRisks,
+      ...baselineCtx,
+    };
   };
 
-  const askCompliance=async()=>{
-    setCompLoading(true);setCompResult('');setCompError('');setCompUsedImage(false);
-    try{
-      const res=await fetch('/api/analyze-simulation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(buildSimPayload('compliance'))});
-      const data=await res.json();
-      if(!res.ok) throw new Error(data.error||`HTTP ${res.status}`);
-      setCompResult(data.result);setCompUsedImage(!!data.used_image);
-    }catch(e){setCompError(e.message);}
-    finally{setCompLoading(false);}
+  const askCompliance = async () => {
+    setCompLoading(true);
+    setCompResult("");
+    setCompError("");
+    setCompUsedImage(false);
+    try {
+      const res = await fetch("/api/analyze-simulation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildSimPayload("compliance")),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setCompResult(data.result);
+      setCompUsedImage(!!data.used_image);
+    } catch (e) {
+      setCompError(e.message);
+    } finally {
+      setCompLoading(false);
+    }
   };
 
-  const askPhysics=async()=>{
-    setPhysLoading(true);setPhysResult('');setPhysError('');setPhysUsedImage(false);
-    try{
-      const res=await fetch('/api/analyze-simulation',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(buildSimPayload('physics'))});
-      const data=await res.json();
-      if(!res.ok) throw new Error(data.error||`HTTP ${res.status}`);
-      setPhysResult(data.result);setPhysUsedImage(!!data.used_image);
-    }catch(e){setPhysError(e.message);}
-    finally{setPhysLoading(false);}
+  const askPhysics = async () => {
+    setPhysLoading(true);
+    setPhysResult("");
+    setPhysError("");
+    setPhysUsedImage(false);
+    try {
+      const res = await fetch("/api/analyze-simulation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(buildSimPayload("physics")),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setPhysResult(data.result);
+      setPhysUsedImage(!!data.used_image);
+    } catch (e) {
+      setPhysError(e.message);
+    } finally {
+      setPhysLoading(false);
+    }
   };
 
-  return(
+  return (
     <div className={styles.wrap}>
       <div className={styles.left}>
         <div className={styles.floorHeader}>
-          <span className={styles.floorTitle}>Datacenter Floorplan · {rackLayout.length} Racks</span>
-          <span className={`${styles.baselineChip} ${styles['baseline_'+baselineStatus]}`}>
-            {baselineStatus==='loaded'?'📡 Sensor baseline':baselineStatus==='loading'?'⏳ Loading baseline…':'📐 Formula only'}
+          <span className={styles.floorTitle}>
+            Datacenter Floorplan
+            {rackLayout.length > 0 ? ` · ${rackLayout.length} Racks` : ""}
           </span>
-          {cosmosThinking&&<span className={styles.thinkingChip}>🔮 Cosmos predicting…</span>}
-          {hoveredRack&&!cosmosThinking&&<span className={styles.hoverChip}>{hoveredRack.rack_id} · {hoveredRack.temp_c.toFixed(1)}°C · {hoveredRack.power_kw.toFixed(1)} kW {!hoveredRack.ashrae_allow?'⛔ ABOVE ALLOWABLE':!hoveredRack.ashrae_rec?'⚠ above rec':'✓ OK'}</span>}
+          <span
+            className={`${styles.baselineChip} ${styles["baseline_" + baselineStatus]}`}
+          >
+            {baselineStatus === "loaded"
+              ? "📡 Sensor baseline"
+              : baselineStatus === "loading"
+                ? "⏳ Loading baseline…"
+                : "📐 Formula only"}
+          </span>
+          {cosmosThinking && (
+            <span className={styles.thinkingChip}>🔮 Cosmos predicting…</span>
+          )}
+          {hoveredRack && !cosmosThinking && (
+            <span className={styles.hoverChip}>
+              {hoveredRack.rack_id} · {hoveredRack.temp_c.toFixed(1)}°C ·{" "}
+              {hoveredRack.power_kw.toFixed(1)} kW{" "}
+              {!hoveredRack.ashrae_allow
+                ? "⛔ ABOVE ALLOWABLE"
+                : !hoveredRack.ashrae_rec
+                  ? "⚠ above rec"
+                  : "✓ OK"}
+            </span>
+          )}
         </div>
 
-        <FloorPlan racks={sim.racks} hovered={hovered} onHover={setHovered} cosmosRisk={cosmosMode?cosmosRisk:null}/>
+        {rackLayout.length === 0 ? (
+          <div className={styles.layoutPlaceholder}>
+            {layoutError ? (
+              <>
+                <div className={styles.layoutPlaceholderIcon}>⚠</div>
+                <div>Unable to load the rack layout for this allocation.</div>
+                <button
+                  className={styles.retryBtn}
+                  onClick={() => setRetryTick((t) => t + 1)}
+                >
+                  Retry
+                </button>
+              </>
+            ) : (
+              <>
+                <div className={styles.layoutPlaceholderIcon}>⏳</div>
+                <div>Loading rack layout…</div>
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            <FloorPlan
+              racks={sim.racks}
+              hovered={hovered}
+              onHover={setHovered}
+              cosmosRisk={cosmosMode ? cosmosRisk : null}
+            />
 
         <div className={styles.legend}>
-          <div className={styles.legendBar} style={{background:`linear-gradient(to right,${[18,22,25,27,29,31,33].map(t=>tempColor(t)).join(',')})`}}/>
-          <div className={styles.legendLabels}><span>18°C</span><span>22°C</span><span>27° REC</span><span>32° MAX</span></div>
+          <div
+            className={styles.legendBar}
+            style={{
+              background: `linear-gradient(to right,${[18, 22, 25, 27, 29, 31, 33].map((t) => tempColor(t)).join(",")})`,
+            }}
+          />
+          <div className={styles.legendLabels}>
+            <span>18°C</span>
+            <span>22°C</span>
+            <span>27° REC</span>
+            <span>32° MAX</span>
+          </div>
         </div>
 
         {/* Cosmos risk summary bar */}
-        {cosmosMode&&cosmosRisk&&(
+        {cosmosMode && cosmosRisk && (
           <div className={styles.riskBar}>
-            {[1,2,3].map(row=>{
-              const risk=cosmosRisk[`row${row}`]??'UNKNOWN';
-              return(<div key={row} className={styles.riskCell} style={{borderColor:RISK_COLOR[risk]}}>
-                <span style={{color:RISK_COLOR[risk],fontWeight:700}}>Row {row}</span>
-                <span style={{color:RISK_COLOR[risk],fontSize:'0.7rem'}}>{risk}</span>
-              </div>);
+            {[1, 2, 3].map((row) => {
+              const risk = cosmosRisk[`row${row}`] ?? "UNKNOWN";
+              return (
+                <div
+                  key={row}
+                  className={styles.riskCell}
+                  style={{ borderColor: RISK_COLOR[risk] }}
+                >
+                  <span style={{ color: RISK_COLOR[risk], fontWeight: 700 }}>
+                    Row {row}
+                  </span>
+                  <span style={{ color: RISK_COLOR[risk], fontSize: "0.7rem" }}>
+                    {risk}
+                  </span>
+                </div>
+              );
             })}
-            {cosmosRisk.maxTemp&&<div className={styles.riskCell} style={{borderColor:'#555'}}>
-              <span style={{color:'#aaa',fontWeight:700}}>AI Peak</span>
-              <span style={{color:'#aaa',fontSize:'0.7rem'}}>{cosmosRisk.maxTemp}°C</span>
-            </div>}
-            {cosmosRisk.action&&<div className={styles.riskAction}>⚡ {cosmosRisk.action}</div>}
+            {cosmosRisk.maxTemp && (
+              <div className={styles.riskCell} style={{ borderColor: "#555" }}>
+                <span style={{ color: "#aaa", fontWeight: 700 }}>AI Peak</span>
+                <span style={{ color: "#aaa", fontSize: "0.7rem" }}>
+                  {cosmosRisk.maxTemp}°C
+                </span>
+              </div>
+            )}
+            {cosmosRisk.action && (
+              <div className={styles.riskAction}>⚡ {cosmosRisk.action}</div>
+            )}
           </div>
         )}
 
         <div className={styles.metricsRow}>
-          <div className={`${styles.metric} ${sim.totalKW>DESIGN_KW?styles.metricWarn:''}`}>
-            <div className={styles.metricVal}>{sim.totalKW.toFixed(0)}<span className={styles.metricUnit}>kW</span></div>
-            <div className={styles.metricLabel}>IT Load / {simOpts.designKW??DESIGN_KW} kW design</div>
+          <div
+            className={`${styles.metric} ${sim.totalKW > DESIGN_KW ? styles.metricWarn : ""}`}
+          >
+            <div className={styles.metricVal}>
+              {sim.totalKW.toFixed(0)}
+              <span className={styles.metricUnit}>kW</span>
+            </div>
+            <div className={styles.metricLabel}>
+              IT Load / {simOpts.designKW ?? DESIGN_KW} kW design
+            </div>
           </div>
           <div className={styles.metric}>
-            <div className={styles.metricVal}>{sim.facilKW.toFixed(0)}<span className={styles.metricUnit}>kW</span></div>
-            <div className={styles.metricLabel}>Facility (PUE {sim.pue.toFixed(2)})</div>
+            <div className={styles.metricVal}>
+              {sim.facilKW.toFixed(0)}
+              <span className={styles.metricUnit}>kW</span>
+            </div>
+            <div className={styles.metricLabel}>
+              Facility (PUE {sim.pue.toFixed(2)})
+            </div>
           </div>
-          <div className={`${styles.metric} ${sim.maxTemp>ASHRAE_ALLOW?styles.metricDanger:sim.maxTemp>ASHRAE_REC?styles.metricWarn:''}`}>
-            <div className={styles.metricVal}>{sim.maxTemp.toFixed(1)}<span className={styles.metricUnit}>°C</span></div>
+          <div
+            className={`${styles.metric} ${sim.maxTemp > ASHRAE_ALLOW ? styles.metricDanger : sim.maxTemp > ASHRAE_REC ? styles.metricWarn : ""}`}
+          >
+            <div className={styles.metricVal}>
+              {sim.maxTemp.toFixed(1)}
+              <span className={styles.metricUnit}>°C</span>
+            </div>
             <div className={styles.metricLabel}>Peak Temp (formula)</div>
           </div>
-          <div className={`${styles.metric} ${sim.critical>0?styles.metricDanger:sim.violations>0?styles.metricWarn:styles.metricOk}`}>
+          <div
+            className={`${styles.metric} ${sim.critical > 0 ? styles.metricDanger : sim.violations > 0 ? styles.metricWarn : styles.metricOk}`}
+          >
             <div className={styles.metricVal}>{sim.violations}</div>
-            <div className={styles.metricLabel}>ASHRAE Violations{sim.critical>0?` (${sim.critical} crit)`:''}</div>
+            <div className={styles.metricLabel}>
+              ASHRAE Violations
+              {sim.critical > 0 ? ` (${sim.critical} crit)` : ""}
+            </div>
           </div>
         </div>
 
-        {(compResult||compLoading||compError)&&(
-          <div className={`${styles.cosmosResult} ${compError?styles.cosmosError:''}`}>
-            {compLoading&&<div style={{color:'#76b900',textAlign:'center'}}>⏳ Cosmos running compliance assessment…</div>}
-            {compError&&<div>❌ Compliance: {compError}</div>}
-            {compResult&&<><div className={styles.cosmosResultHeader}>📋 ASHRAE TC 9.9 / ASME V&amp;V 20 Compliance Report {compUsedImage?'(thermal image + data)':'(scenario data)'}</div>{compResult}</>}
+        {(compResult || compLoading || compError) && (
+          <div
+            className={`${styles.cosmosResult} ${compError ? styles.cosmosError : ""}`}
+          >
+            {compLoading && (
+              <div style={{ color: "#76b900", textAlign: "center" }}>
+                ⏳ Cosmos running compliance assessment…
+              </div>
+            )}
+            {compError && <div>❌ Compliance: {compError}</div>}
+            {compResult && (
+              <>
+                <div className={styles.cosmosResultHeader}>
+                  📋 ASHRAE TC 9.9 / ASME V&amp;V 20 Compliance Report{" "}
+                  {compUsedImage ? "(thermal image + data)" : "(scenario data)"}
+                </div>
+                {compResult}
+              </>
+            )}
           </div>
         )}
-        {(physResult||physLoading||physError)&&(
-          <div className={`${styles.cosmosResult} ${physError?styles.cosmosError:''}`}>
-            {physLoading&&<div style={{color:'#76b900',textAlign:'center'}}>⏳ Cosmos running physics/CFD analysis…</div>}
-            {physError&&<div>❌ Physics: {physError}</div>}
-            {physResult&&<><div className={styles.cosmosResultHeader}>⚙️ Physics / CFD Analysis {physUsedImage?'(thermal image + data)':'(scenario data)'}</div>{physResult}</>}
+        {(physResult || physLoading || physError) && (
+          <div
+            className={`${styles.cosmosResult} ${physError ? styles.cosmosError : ""}`}
+          >
+            {physLoading && (
+              <div style={{ color: "#76b900", textAlign: "center" }}>
+                ⏳ Cosmos running physics/CFD analysis…
+              </div>
+            )}
+            {physError && <div>❌ Physics: {physError}</div>}
+            {physResult && (
+              <>
+                <div className={styles.cosmosResultHeader}>
+                  ⚙️ Physics / CFD Analysis{" "}
+                  {physUsedImage ? "(thermal image + data)" : "(scenario data)"}
+                </div>
+                {physResult}
+              </>
+            )}
           </div>
+        )}
+          </>
         )}
       </div>
 
@@ -483,113 +957,265 @@ export default function SimulationPanel(){
           <select
             className={styles.allocSelect}
             value={selectedAlloc}
-            onChange={e=>{setSelectedAlloc(e.target.value);setScenario(0);setRowOverrides({});}}
+            onChange={(e) => {
+              setSelectedAlloc(e.target.value);
+              setScenario(0);
+              setRowOverrides({});
+            }}
             disabled={allocLoading}
           >
             {/* Always show current as an option even if list didn't load */}
             {/* Default option always present */}
-            {!allocations.find(a=>a.allocationId===DEFAULT_ALLOC) && (
-              <option key={DEFAULT_ALLOC} value={DEFAULT_ALLOC}>{DEFAULT_ALLOC}</option>
+            {!allocations.find((a) => a.allocationId === DEFAULT_ALLOC) && (
+              <option key={DEFAULT_ALLOC} value={DEFAULT_ALLOC}>
+                {DEFAULT_ALLOC}
+              </option>
             )}
-            {allocations.map(a=>(
-              <option key={a.allocationId} value={a.allocationId}>{a.label}</option>
+            {allocations.map((a) => (
+              <option key={a.allocationId} value={a.allocationId}>
+                {a.label}
+              </option>
             ))}
           </select>
-          {allocLoading&&<div className={styles.imageNote}>⏳ Loading allocation data…</div>}
-          {simOpts.idleKW&&<div className={styles.imageNote}>
-            Calibration: idle {simOpts.idleKW} kW · peak {simOpts.peakKW} kW · design {simOpts.designKW?.toFixed(0)} kW
-          </div>}
+          {allocLoading && (
+            <div className={styles.imageNote}>⏳ Loading allocation data…</div>
+          )}
+          {simOpts.idleKW && (
+            <div className={styles.imageNote}>
+              Calibration: idle {simOpts.idleKW} kW · peak {simOpts.peakKW} kW ·
+              design {simOpts.designKW?.toFixed(0)} kW
+            </div>
+          )}
         </div>
 
         {/* Cosmos Live Prediction Mode toggle */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>🔮 Cosmos Live Prediction</div>
           <label className={styles.toggle}>
-            <input type="checkbox" checked={cosmosMode} onChange={e=>setCosmosMode(e.target.checked)}/>
-            <span className={styles.toggleSlider}/>
-            <span className={styles.toggleLabel}>{cosmosMode?'ON — auto-predicts on slider change':'OFF — formula only'}</span>
+            <input
+              type="checkbox"
+              checked={cosmosMode}
+              onChange={(e) => setCosmosMode(e.target.checked)}
+            />
+            <span className={styles.toggleSlider} />
+            <span className={styles.toggleLabel}>
+              {cosmosMode
+                ? "ON — auto-predicts on slider change"
+                : "OFF — formula only"}
+            </span>
           </label>
           <div className={styles.imageNote}>
             {cosmosMode
-              ? 'Move any slider → Cosmos analyses thermal image after 1.5s → risk bands appear on map'
-              : 'Enable to overlay AI risk prediction on the floorplan'}
+              ? "Move any slider → Cosmos analyses thermal image after 1.5s → risk bands appear on map"
+              : "Enable to overlay AI risk prediction on the floorplan"}
           </div>
-          {cosmosThinking&&<div className={styles.thinkingNote}>⏳ Cosmos is reading the thermal state…</div>}
+          {cosmosThinking && (
+            <div className={styles.thinkingNote}>
+              ⏳ Cosmos is reading the thermal state…
+            </div>
+          )}
         </div>
 
         {/* Compliance Analysis */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>📋 Compliance Analysis</div>
-          <button className={`${styles.cosmosBtn} ${compLoading?styles.cosmosBtnLoading:''}`} onClick={askCompliance} disabled={compLoading||physLoading}>
-            {compLoading?'⏳ Running compliance check…':'Run Compliance Check'}
+          <button
+            className={`${styles.cosmosBtn} ${compLoading ? styles.cosmosBtnLoading : ""}`}
+            onClick={askCompliance}
+            disabled={compLoading || physLoading}
+          >
+            {compLoading
+              ? "⏳ Running compliance check…"
+              : "Run Compliance Check"}
           </button>
-          <div className={styles.imageNote}>ASHRAE GL-14 (3-level temp measurement) + ASME V&amp;V 20 — violation report &amp; corrective actions</div>
+          <div className={styles.imageNote}>
+            ASHRAE GL-14 (3-level temp measurement) + ASME V&amp;V 20 —
+            violation report &amp; corrective actions
+          </div>
         </div>
 
         {/* Physics / CFD Analysis */}
         <div className={styles.section}>
           <div className={styles.sectionTitle}>⚙️ Physics / CFD Analysis</div>
-          <button className={`${styles.cosmosBtn} ${styles.cosmosBtnPhysics} ${physLoading?styles.cosmosBtnLoading:''}`} onClick={askPhysics} disabled={compLoading||physLoading}>
-            {physLoading?'⏳ Running physics analysis…':'Run Physics Analysis'}
+          <button
+            className={`${styles.cosmosBtn} ${styles.cosmosBtnPhysics} ${physLoading ? styles.cosmosBtnLoading : ""}`}
+            onClick={askPhysics}
+            disabled={compLoading || physLoading}
+          >
+            {physLoading
+              ? "⏳ Running physics analysis…"
+              : "Run Physics Analysis"}
           </button>
-          <div className={styles.imageNote}>Thermal envelope, cooling headroom, power density, load-delta predictions</div>
+          <div className={styles.imageNote}>
+            Thermal envelope, cooling headroom, power density, load-delta
+            predictions
+          </div>
         </div>
 
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Scenario Presets</div>
           <div className={styles.scenarioGrid}>
-            {SCENARIOS.map((s,i)=><button key={i} className={`${styles.scBtn} ${scenario===i?styles.scActive:''}`} onClick={()=>applyScenario(i)}>{s.label}</button>)}
+            {SCENARIOS.map((s, i) => (
+              <button
+                key={i}
+                className={`${styles.scBtn} ${scenario === i ? styles.scActive : ""}`}
+                onClick={() => applyScenario(i)}
+              >
+                {s.label}
+              </button>
+            ))}
           </div>
-          <div className={styles.scenarioDesc}>{SCENARIOS[Math.max(0,scenario)]?.desc}</div>
+          <div className={styles.scenarioDesc}>
+            {SCENARIOS[Math.max(0, scenario)]?.desc}
+          </div>
         </div>
 
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Global Load</div>
           <div className={styles.sliderRow}>
             <span className={styles.sliderLabel}>All Racks</span>
-            <input type="range" min={0} max={100} step={1} value={Math.round(globalLoad*100)} onChange={e=>{setGlobalLoad(e.target.value/100);setScenario(-1);}} className={styles.slider}/>
-            <span className={styles.sliderVal}>{Math.round(globalLoad*100)}%</span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(globalLoad * 100)}
+              onChange={(e) => {
+                setGlobalLoad(e.target.value / 100);
+                setScenario(-1);
+              }}
+              className={styles.slider}
+            />
+            <span className={styles.sliderVal}>
+              {Math.round(globalLoad * 100)}%
+            </span>
           </div>
-          <div className={styles.sliderSub}>{(IDLE_KW+(PEAK_KW-IDLE_KW)*globalLoad).toFixed(1)} kW/rack · {(52*(IDLE_KW+(PEAK_KW-IDLE_KW)*globalLoad)).toFixed(0)} kW total</div>
+          <div className={styles.sliderSub}>
+            {(IDLE_KW + (PEAK_KW - IDLE_KW) * globalLoad).toFixed(1)} kW/rack ·{" "}
+            {(
+              rackLayout.length *
+              (IDLE_KW + (PEAK_KW - IDLE_KW) * globalLoad)
+            ).toFixed(0)}{" "}
+            kW total
+          </div>
         </div>
 
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Per-Row Override</div>
-          {[1,2,3].map(row=>{
-            const rowRacks=sim.racks.filter(r=>r.row===row);
-            const avgT=rowRacks.reduce((s,r)=>s+r.temp_c,0)/rowRacks.length;
-            const viol=rowRacks.filter(r=>!r.ashrae_rec).length;
-            const risk=cosmosRisk?.[`row${row}`];
-            return(<div key={row}>
-              <div className={styles.sliderRow}>
-                <span className={styles.sliderLabel} style={risk?{color:RISK_COLOR[risk]}:{}}>Row {row}{risk&&cosmosMode?` [${risk}]`:''}</span>
-                <input type="range" min={0} max={100} step={1} value={Math.round(getRowLoad(row)*100)} onChange={e=>{setRowOverrides(p=>({...p,[row]:e.target.value/100}));setScenario(-1);}} className={styles.slider}/>
-                <span className={styles.sliderVal}>{Math.round(getRowLoad(row)*100)}%</span>
+          {[1, 2, 3].map((row) => {
+            const rowRacks = sim.racks.filter((r) => r.row === row);
+            const avgT =
+              rowRacks.reduce((s, r) => s + r.temp_c, 0) / rowRacks.length;
+            const viol = rowRacks.filter((r) => !r.ashrae_rec).length;
+            const risk = cosmosRisk?.[`row${row}`];
+            return (
+              <div key={row}>
+                <div className={styles.sliderRow}>
+                  <span
+                    className={styles.sliderLabel}
+                    style={risk ? { color: RISK_COLOR[risk] } : {}}
+                  >
+                    Row {row}
+                    {risk && cosmosMode ? ` [${risk}]` : ""}
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={Math.round(getRowLoad(row) * 100)}
+                    onChange={(e) => {
+                      setRowOverrides((p) => ({
+                        ...p,
+                        [row]: e.target.value / 100,
+                      }));
+                      setScenario(-1);
+                    }}
+                    className={styles.slider}
+                  />
+                  <span className={styles.sliderVal}>
+                    {Math.round(getRowLoad(row) * 100)}%
+                  </span>
+                </div>
+                <div className={styles.rowStat}>
+                  avg {avgT.toFixed(1)}°C · {viol}/{rowRacks.length} violations
+                </div>
               </div>
-              <div className={styles.rowStat}>avg {avgT.toFixed(1)}°C · {viol}/{rowRacks.length} violations</div>
-            </div>);
+            );
           })}
         </div>
 
         <div className={styles.section}>
           <div className={styles.sectionTitle}>Cooling System</div>
           <label className={styles.toggle}>
-            <input type="checkbox" checked={coolingOk} onChange={e=>{setCoolingOk(e.target.checked);setScenario(-1);}}/>
-            <span className={styles.toggleSlider}/>
-            <span className={styles.toggleLabel}>{coolingOk?'Normal (N+1 online)':'FAULT — 50% capacity'}</span>
+            <input
+              type="checkbox"
+              checked={coolingOk}
+              onChange={(e) => {
+                setCoolingOk(e.target.checked);
+                setScenario(-1);
+              }}
+            />
+            <span className={styles.toggleSlider} />
+            <span className={styles.toggleLabel}>
+              {coolingOk ? "Normal (N+1 online)" : "FAULT — 50% capacity"}
+            </span>
           </label>
-          {!coolingOk&&<div className={styles.faultNote}>⚠ Cooling failure doubles thermal delta</div>}
+          {!coolingOk && (
+            <div className={styles.faultNote}>
+              ⚠ Cooling failure doubles thermal delta
+            </div>
+          )}
         </div>
 
-        {hoveredRack&&(
+        {hoveredRack && (
           <div className={styles.section}>
             <div className={styles.sectionTitle}>Rack Detail</div>
             <div className={styles.rackDetail}>
-              {[['ID',hoveredRack.rack_id],['Row',hoveredRack.row],['Position',`${hoveredRack.position_ft.x}ft, ${hoveredRack.position_ft.y}ft`],['Load',`${Math.round(hoveredRack.load_pct*100)}%`],['Power',`${hoveredRack.power_kw.toFixed(2)} kW`]].map(([k,v])=>(
-                <div key={k} className={styles.rackDetailRow}><span>{k}</span><strong>{v}</strong></div>
+              {[
+                ["ID", hoveredRack.rack_id],
+                ["Row", hoveredRack.row],
+                [
+                  "Position",
+                  `${hoveredRack.position_ft.x}ft, ${hoveredRack.position_ft.y}ft`,
+                ],
+                ["Load", `${Math.round(hoveredRack.load_pct * 100)}%`],
+                ["Power", `${hoveredRack.power_kw.toFixed(2)} kW`],
+              ].map(([k, v]) => (
+                <div key={k} className={styles.rackDetailRow}>
+                  <span>{k}</span>
+                  <strong>{v}</strong>
+                </div>
               ))}
-              <div className={styles.rackDetailRow}><span>Temp</span><strong style={{color:!hoveredRack.ashrae_allow?'#f55':!hoveredRack.ashrae_rec?'#f5a623':'#76b900'}}>{hoveredRack.temp_c.toFixed(2)}°C</strong></div>
-              {cosmosMode&&cosmosRisk&&<div className={styles.rackDetailRow}><span>AI Risk</span><strong style={{color:RISK_COLOR[cosmosRisk[`row${hoveredRack.row}`]??'UNKNOWN']}}>{cosmosRisk[`row${hoveredRack.row}`]??'—'}</strong></div>}
+              <div className={styles.rackDetailRow}>
+                <span>Temp</span>
+                <strong
+                  style={{
+                    color: !hoveredRack.ashrae_allow
+                      ? "#f55"
+                      : !hoveredRack.ashrae_rec
+                        ? "#f5a623"
+                        : "#76b900",
+                  }}
+                >
+                  {hoveredRack.temp_c.toFixed(2)}°C
+                </strong>
+              </div>
+              {cosmosMode && cosmosRisk && (
+                <div className={styles.rackDetailRow}>
+                  <span>AI Risk</span>
+                  <strong
+                    style={{
+                      color:
+                        RISK_COLOR[
+                          cosmosRisk[`row${hoveredRack.row}`] ?? "UNKNOWN"
+                        ],
+                    }}
+                  >
+                    {cosmosRisk[`row${hoveredRack.row}`] ?? "—"}
+                  </strong>
+                </div>
+              )}
             </div>
           </div>
         )}

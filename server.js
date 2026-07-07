@@ -12,13 +12,35 @@ const upload = multer({ storage: multer.memoryStorage() });
 const VLLM_URL = process.env.VLLM_URL || "http://127.0.0.1:8001";
 // ALLOC_BASE: only used for optional local thermal image overlay — falls back to empty string
 // so fs.existsSync checks fail gracefully when no local files are present.
-const ALLOC_BASE = process.env.ALLOC_BASE || '';
+const ALLOC_BASE = process.env.ALLOC_BASE || "";
 const MODEL = process.env.MODEL || "nvidia/Cosmos3-Nano";
 const PORT = process.env.PORT || 7086;
 const OASIS_API = process.env.OASIS_API || "http://103.204.95.220:7040"; // OASIS backend
 const IDLE_TIMEOUT_MS = (process.env.IDLE_TIMEOUT_MIN || 10) * 60 * 1000;
 const STARTUP_MAX_MS = 5 * 60 * 1000; // give up if model not ready in 5 min
 const POLL_INTERVAL_MS = 5_000;
+
+// Real per-allocation thermal map, served by OASIS. Returns null (no image sent to
+// Cosmos) if the allocation has no image yet or OASIS is unreachable — no fallback
+// to a generic local file, since that would show the wrong allocation's image.
+async function loadThermalImageContent(allocationId) {
+  if (!allocationId) return null;
+  try {
+    const upstream = await fetch(
+      `${OASIS_API}/api/assets/simulation/allocation/${allocationId}/thermal/thermal_map.png`,
+    );
+    if (upstream.ok) {
+      const buf = Buffer.from(await upstream.arrayBuffer());
+      return {
+        type: "image_url",
+        image_url: { url: `data:image/png;base64,${buf.toString("base64")}` },
+      };
+    }
+  } catch (err) {
+    console.warn("[thermal-image] OASIS fetch failed:", err.message);
+  }
+  return null;
+}
 
 app.use(cors());
 app.use(express.json());
@@ -326,26 +348,26 @@ app.post("/api/analyze-thermal", upload.single("image"), async (req, res) => {
 app.post("/api/predict-thermal", async (req, res) => {
   try {
     await ensureVLLM();
-    const { totalKW, globalLoad, coolingOk, rowStats, topRisks } = req.body;
+    const { totalKW, globalLoad, coolingOk, rowStats, topRisks, facility } =
+      req.body;
 
-    const thermalImg = path.join(
-      ALLOC_BASE,
-      "thermal",
-      "thermal_map_composite.png",
-    );
-    let imageContent = null;
-    if (fs.existsSync(thermalImg)) {
-      const b64 = fs.readFileSync(thermalImg).toString("base64");
-      imageContent = {
-        type: "image_url",
-        image_url: { url: `data:image/png;base64,${b64}` },
-      };
-    }
+    // Facility identity/specs come from the OASIS allocation the client is viewing —
+    // allocationId/customerName identify the tenant allocation (a customer's leased
+    // space), not the shared datacenter facility (datacenterId) that hosts it. Fall
+    // back to generic placeholders (never a hardcoded name) if the client omits it.
+    const rackCount = facility?.rackCount || 52;
+    const numRows = facility?.numRows || 3;
+    const designKW = facility?.designKW || 375;
+    const facilityLabel = facility?.allocationId
+      ? `allocation ${facility.allocationId}${facility.customerName ? ` (customer: ${facility.customerName})` : ""}${facility.datacenterId ? ` in datacenter ${facility.datacenterId}` : ""}`
+      : "this datacenter allocation";
 
-    const prompt = `You are a datacenter thermal AI. Analyze the DFW datacenter (52 racks, 3 rows, 375 kW capacity).
+    const imageContent = await loadThermalImageContent(facility?.allocationId);
+
+    const prompt = `You are a datacenter thermal AI. Analyze ${facilityLabel} (${rackCount} racks, ${numRows} rows, ${designKW} kW capacity).
 
 CURRENT LOAD STATE:
-- IT Load: ${Number(totalKW).toFixed(0)} kW / 375 kW (${((totalKW / 375) * 100).toFixed(0)}%)
+- IT Load: ${Number(totalKW).toFixed(0)} kW / ${designKW} kW (${((totalKW / designKW) * 100).toFixed(0)}%)
 - Global rack utilisation: ${Math.round(globalLoad * 100)}%
 - Cooling: ${coolingOk ? "normal N+1" : "FAULT — 50% capacity"}
 - Row 1: avg ${rowStats?.[0]?.avgTemp?.toFixed(1)}°C, ${rowStats?.[0]?.violations}/${rowStats?.[0]?.count} racks exceed 27°C
@@ -355,7 +377,7 @@ CURRENT LOAD STATE:
       .slice(0, 3)
       .map((r) => `${r.rack_id}(${Number(r.temp_c).toFixed(1)}°C)`)
       .join(", ")}
-${imageContent ? "\nThe image shows the actual thermal baseline of this datacenter." : ""}
+${imageContent ? "\nThe image shows the actual thermal baseline of this datacenter." : "\nNo thermal baseline image is available for this allocation — base your analysis on the numbers above only."}
 
 Respond ONLY in this exact format — no other text, no explanation outside the fields:
 ROW_1_RISK: SAFE|WARNING|CRITICAL
@@ -424,32 +446,37 @@ app.post("/api/analyze-simulation", async (req, res) => {
       coolingOk,
       rowStats,
       topRisks,
+      facility,
     } = req.body;
 
-    // Try to load the actual thermal composite image
-    const thermalImg = path.join(
-      ALLOC_BASE,
-      "thermal",
-      "thermal_map_composite.png",
-    );
-    let imageContent = null;
-    if (fs.existsSync(thermalImg)) {
-      const b64 = fs.readFileSync(thermalImg).toString("base64");
-      imageContent = {
-        type: "image_url",
-        image_url: { url: `data:image/png;base64,${b64}` },
-      };
-    }
+    // Facility identity/specs come from the OASIS allocation the client is viewing —
+    // allocationId/customerName identify the tenant allocation (a customer's leased
+    // space), not the shared datacenter facility (datacenterId) that hosts it. Fall
+    // back to generic placeholders (never a hardcoded name) if the client omits it.
+    const rackCount = facility?.rackCount || 52;
+    const numRows = facility?.numRows || 3;
+    const designKW = facility?.designKW || 375;
+    const idleKW = facility?.idleKW || 4.0;
+    const peakKW = facility?.peakKW || 18.0;
+    const dims =
+      facility?.widthFt && facility?.lengthFt
+        ? `${facility.widthFt}x${facility.lengthFt} ft, `
+        : "";
+    const facilityLabel = facility?.allocationId
+      ? `allocation ${facility.allocationId}${facility.customerName ? ` (customer: ${facility.customerName})` : ""}${facility.datacenterId ? ` in datacenter ${facility.datacenterId}` : ""}`
+      : "this datacenter allocation";
+
+    const imageContent = await loadThermalImageContent(facility?.allocationId);
 
     // Shared data block used in all prompts
-    const dataBlock = `FACILITY: DFW Datacenter — Vertex AI Systems, 70x40 ft, 52 racks, 3 rows, 375 kW IT design capacity
+    const dataBlock = `ALLOCATION: ${facilityLabel} — ${dims}${rackCount} racks, ${numRows} rows, ${designKW} kW IT design capacity
 SCENARIO:  ${scenario || "Custom"}
-IT Load:   ${Number(totalKW).toFixed(0)} kW / 375 kW design (${((totalKW / 375) * 100).toFixed(0)}%)
+IT Load:   ${Number(totalKW).toFixed(0)} kW / ${designKW} kW design (${((totalKW / designKW) * 100).toFixed(0)}%)
 Facility:  ${Number(facilKW).toFixed(0)} kW  |  PUE ${Number(pue).toFixed(2)}
 Load:      ${Math.round(globalLoad * 100)}% global rack utilisation
 Peak Temp: ${Number(maxTemp).toFixed(1)} deg C
-ASHRAE Recommended (27 deg C): ${violations}/52 racks exceed limit
-ASHRAE Allowable  (32 deg C): ${critical}/52 racks at or above critical threshold
+ASHRAE Recommended (27 deg C): ${violations}/${rackCount} racks exceed limit
+ASHRAE Allowable  (32 deg C): ${critical}/${rackCount} racks at or above critical threshold
 Cooling:   ${coolingOk ? "Normal — N+1 CRAC units online" : "FAULT — 50% cooling capacity (one CRAC offline)"}
 
 ROW BREAKDOWN:
@@ -463,7 +490,7 @@ ${(topRisks || [])
       `  ${i + 1}. ${r.rack_id} (Row ${r.row}): ${Number(r.temp_c).toFixed(1)} deg C  ${Number(r.power_kw).toFixed(1)} kW`,
   )
   .join("\n")}
-${imageContent ? "\nThe attached image is the real thermal baseline map of this datacenter." : ""}`;
+${imageContent ? "\nThe attached image is the real thermal baseline map of this datacenter." : "\nNo thermal baseline image is available for this allocation — base your analysis on the numbers above only."}`;
 
     let prompt;
     let max_tokens = 1500;
@@ -506,7 +533,7 @@ Provide a structured compliance assessment:
       prompt = `You are a datacenter thermal engineer with deep expertise in thermodynamics, computational fluid dynamics (CFD), heat transfer, and building management systems.
 
 This facility uses hot-aisle/cold-aisle containment with N+1 precision CRAC cooling.
-Physics model: idle power 4.0 kW/rack, peak 18.0 kW/rack, thermal coefficient 0.969 deg C/kW, ambient supply 18 deg C.
+Physics model: idle power ${idleKW.toFixed(1)} kW/rack, peak ${peakKW.toFixed(1)} kW/rack, thermal coefficient 0.969 deg C/kW, ambient supply 18 deg C.
 
 ${dataBlock}
 
@@ -519,7 +546,7 @@ Provide a physics-based thermal engineering analysis:
 6. LOAD DELTA PREDICTION — If IT load increases from current by +10% / +20% / +30%, predict the temperature delta (deg C) per row and identify which row breaches the allowable limit first.`;
     } else {
       // General / legacy mode
-      prompt = `You are a datacenter thermal management AI analyzing the DFW datacenter (Vertex AI Systems, 70x40 ft, 52 racks, 3 rows, 375 kW IT design capacity).
+      prompt = `You are a datacenter thermal management AI analyzing ${facilityLabel} (${dims}${rackCount} racks, ${numRows} rows, ${designKW} kW IT design capacity).
 
 ${dataBlock}
 
@@ -632,6 +659,20 @@ app.get("/api/oasis/allocation/:id/layout", async (req, res) => {
   }
 });
 
+app.get("/api/oasis/allocation/:id/thermal-image", async (req, res) => {
+  try {
+    const upstream = await fetch(
+      `${OASIS_API}/api/assets/simulation/allocation/${req.params.id}/thermal/thermal_map.png`,
+    );
+    if (!upstream.ok) return res.status(upstream.status).end();
+    res.set("Content-Type", upstream.headers.get("content-type") || "image/png");
+    res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (err) {
+    console.error("[oasis/thermal-image]", err.message);
+    res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
+  }
+});
+
 app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "client", "dist", "index.html"));
 });
@@ -640,7 +681,9 @@ app.listen(PORT, () => {
   console.log(`\n  Backend  -> http://localhost:${PORT}`);
   console.log(`  vLLM   -> ${VLLM_URL}`);
   console.log(`  OASIS  -> ${OASIS_API}`);
-  console.log(`  Mode     -> on-demand (idle timeout: ${IDLE_TIMEOUT_MS / 60000} min)\n`);
+  console.log(
+    `  Mode     -> on-demand (idle timeout: ${IDLE_TIMEOUT_MS / 60000} min)\n`,
+  );
 });
 
 process.on("SIGINT", () => {
