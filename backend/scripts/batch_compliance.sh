@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Batch-runs the Cosmos compliance analysis (mode=compliance) across every
-# allocation in the given datacenters and writes just the COMPLIANCE STATUS
-# field to CSV — a first slice of Item 4's full test_allocation_reasoner_v1.xlsx.
-# Extend the jq filter + CSV columns once this shape is confirmed to work.
+# allocation in the given datacenters and writes all 7 report sections to CSV —
+# Item 4's test_allocation_reasoner_v1.xlsx (Sheet 1), minus the manual columns.
 #
 # Requires: curl, jq (https://jqlang.github.io/jq/download/)
 #
@@ -12,8 +11,15 @@
 #   BACKEND_URL=http://103.204.95.220:7086 ./batch_compliance.sh
 #   OUTFILE=results.csv LOGFILE=run.log DATACENTERS="CHI1-CHI3" ./batch_compliance.sh
 #
+# CSV columns:
+#   datacenter, allocation_id, customer_name, result_summary,
+#   compliance_status, equipment_class_risk, violation_report,
+#   reportable_incidents, corrective_actions, asme_vv_gap,
+#   compliance_risk_rating, is_correct, comments
+# (is_correct / comments are left blank for manual review.)
+#
 # Two output files:
-#   OUTFILE (CSV)  — one row per allocation: datacenter, allocation_id, customer_name, compliance_status
+#   OUTFILE (CSV)  — one row per allocation, columns above
 #   LOGFILE (text) — every console progress line PLUS the full raw request/response
 #                    JSON for every API call, per allocation, for debugging failures
 #
@@ -30,6 +36,20 @@ LOGFILE="${LOGFILE:-batch_compliance.log}"
 SLEEP_BETWEEN="${SLEEP_BETWEEN:-1}"   # seconds between Cosmos calls
 LIMIT="${LIMIT:-0}"                  # 0 = no limit; set e.g. LIMIT=3 for a dry run
 read -r -a DATACENTERS <<< "${DATACENTERS:-CHI1-CHI3 DFW3-DFW5}"
+
+# Ordered to match the 7 numbered sections in the compliance prompt
+# (simulation.controller.js). Each pattern also matches the older pre-rename
+# heading text so this keeps working even if the model echoes stale phrasing.
+SECTION_HEADS=(
+  "COMPLIANCE STATUS"
+  "(ENVELOPE RISK|EQUIPMENT CLASS RISK)"
+  "(SLA VIOLATION REPORT|VIOLATION REPORT)"
+  "REPORTABLE INCIDENTS"
+  "CORRECTIVE ACTIONS"
+  "ASME V&V 20 GAP"
+  "COMPLIANCE RISK RATING"
+)
+SECTION_COLS=(compliance_status equipment_class_risk violation_report reportable_incidents corrective_actions asme_vv_gap compliance_risk_rating)
 
 : > "$LOGFILE"
 
@@ -57,6 +77,45 @@ command -v jq >/dev/null 2>&1 || {
   exit 1
 }
 
+# Builds the alternation regex of every heading AFTER index $1, used as the
+# "stop" boundary when extracting the section that starts at index $1-1.
+build_stop_re() {
+  local start_idx="$1" n=${#SECTION_HEADS[@]} parts=() j
+  for ((j = start_idx; j < n; j++)); do
+    parts+=("${SECTION_HEADS[$j]}")
+  done
+  if [ ${#parts[@]} -eq 0 ]; then
+    printf ''
+  else
+    local IFS='|'
+    printf '(%s)' "${parts[*]}"
+  fi
+}
+
+# Extracts the text between a heading and the next one. Tolerant of Cosmos's
+# inconsistent formatting: sometimes "**HEADING:** value" on one line,
+# sometimes "**HEADING**" with the (also bolded) value on the next line,
+# sometimes a plain numbered list with no bold/colon at all.
+extract_section() {
+  local text="$1" head_re="$2" stop_re="$3"
+  printf '%s' "$text" | awk -v head="$head_re" -v stop="$stop_re" '
+    $0 ~ head && !found {
+      found = 1
+      line = $0
+      sub(".*" head "[:]?\\*{0,2}", "", line)
+      if (line ~ /[A-Za-z0-9]/) print line
+      next
+    }
+    found && stop != "" && $0 ~ stop { exit }
+    found { print }
+  ' | tr -d '*' | tr '\n' ' ' \
+    | sed -E 's/  +/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//; s/^[-—:[:space:]]+//'
+}
+
+csv_escape() {
+  printf '%s' "$1" | sed 's/"/""/g'
+}
+
 log "=== Batch compliance run starting — backend=$BACKEND_URL datacenters=${DATACENTERS[*]} limit=$LIMIT ==="
 
 # ── Warm up vLLM before hammering it with ~100+ sequential requests ────────
@@ -75,15 +134,20 @@ if [ "$status" != "running" ]; then
 fi
 log "vLLM ready."
 
-echo "datacenter,allocation_id,customer_name,compliance_status" > "$OUTFILE"
+echo "datacenter,allocation_id,customer_name,result_summary,compliance_status,equipment_class_risk,violation_report,reportable_incidents,corrective_actions,asme_vv_gap,compliance_risk_rating,is_correct,comments" > "$OUTFILE"
 
-# Appends one CSV row, CSV-escaping the two free-text fields. Never fails.
+# Appends one CSV row. Args: dc alloc_id customer result_summary <7 section values>
+# is_correct/comments are always appended blank, for manual review later.
 write_row() {
-  local dc="$1" alloc_id="$2" customer="$3" status_text="$4"
-  local esc_customer esc_status
-  esc_customer=$(printf '%s' "$customer" | sed 's/"/""/g')
-  esc_status=$(printf '%s' "$status_text" | sed 's/"/""/g')
-  echo "$dc,$alloc_id,\"$esc_customer\",\"$esc_status\"" >> "$OUTFILE"
+  local dc="$1" alloc_id="$2" customer="$3" result_summary="$4"
+  shift 4
+  local row="$dc,$alloc_id,\"$(csv_escape "$customer")\",\"$(csv_escape "$result_summary")\""
+  local s
+  for s in "$@"; do
+    row+=",\"$(csv_escape "$s")\""
+  done
+  row+=",,"
+  echo "$row" >> "$OUTFILE"
 }
 
 for dc in "${DATACENTERS[@]}"; do
@@ -114,7 +178,7 @@ for dc in "${DATACENTERS[@]}"; do
     log_data "$alloc_id — GET /api/oasis/allocation/$alloc_id/layout — response" "$layout_json"
     if ! echo "$layout_json" | jq -e . >/dev/null 2>&1; then
       log "     ERROR: layout fetch returned invalid/empty JSON — skipping"
-      write_row "$dc" "$alloc_id" "" "ERROR: layout fetch failed"
+      write_row "$dc" "$alloc_id" "" "ERROR: layout fetch failed" "" "" "" "" "" "" ""
       sleep "$SLEEP_BETWEEN"
       continue
     fi
@@ -123,7 +187,7 @@ for dc in "${DATACENTERS[@]}"; do
     log_data "$alloc_id — GET /api/oasis/allocation/$alloc_id/thermal — response" "$thermal_json"
     if ! echo "$thermal_json" | jq -e . >/dev/null 2>&1; then
       log "     ERROR: thermal fetch returned invalid/empty JSON — skipping"
-      write_row "$dc" "$alloc_id" "" "ERROR: thermal fetch failed"
+      write_row "$dc" "$alloc_id" "" "ERROR: thermal fetch failed" "" "" "" "" "" "" ""
       sleep "$SLEEP_BETWEEN"
       continue
     fi
@@ -181,7 +245,7 @@ for dc in "${DATACENTERS[@]}"; do
 
     if [ -z "$body" ]; then
       log "     ERROR: failed to build request body (see $LOGFILE for jq errors) — skipping"
-      write_row "$dc" "$alloc_id" "$customer_name" "ERROR: request body build failed"
+      write_row "$dc" "$alloc_id" "$customer_name" "ERROR: request body build failed" "" "" "" "" "" "" ""
       sleep "$SLEEP_BETWEEN"
       continue
     fi
@@ -192,46 +256,38 @@ for dc in "${DATACENTERS[@]}"; do
 
     if ! echo "$response" | jq -e . >/dev/null 2>&1; then
       log "     ERROR: analyze-simulation returned invalid/empty JSON — skipping"
-      write_row "$dc" "$alloc_id" "$customer_name" "ERROR: invalid API response"
+      write_row "$dc" "$alloc_id" "$customer_name" "ERROR: invalid API response" "" "" "" "" "" "" ""
       sleep "$SLEEP_BETWEEN"
       continue
     fi
 
     result_text=$(echo "$response" | jq -r '.result // ""')
-    # Cosmos's heading format isn't consistent run-to-run — sometimes
-    # "**COMPLIANCE STATUS:** VALUE" on one line, sometimes "**COMPLIANCE
-    # STATUS**" with the (also bolded) value on the next line, sometimes a
-    # plain numbered list with no bold/colon at all. Grab everything between
-    # the COMPLIANCE STATUS heading and the next known heading, instead of
-    # anchoring on a specific colon/same-line/bold shape.
-    compliance_status=$(printf '%s' "$result_text" | awk '
-      /COMPLIANCE STATUS/ && !found {
-        found = 1
-        line = $0
-        sub(/.*COMPLIANCE STATUS[:]?\*{0,2}/, "", line)
-        if (line ~ /[A-Za-z]/) print line
-        next
-      }
-      found && /(EQUIPMENT CLASS RISK|ENVELOPE RISK|VIOLATION REPORT|SLA VIOLATION REPORT)/ { exit }
-      found { print }
-    ' | tr -d '*' | tr '\n' ' ' \
-      | sed -E 's/  +/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//; s/^[-—:[:space:]]+//')
+
+    section_values=()
+    for idx in "${!SECTION_HEADS[@]}"; do
+      stop_re=$(build_stop_re $((idx + 1)))
+      section_values+=("$(extract_section "$result_text" "${SECTION_HEADS[$idx]}" "$stop_re")")
+    done
+    compliance_status="${section_values[0]}"
 
     if [ -z "$compliance_status" ]; then
       api_error=$(echo "$response" | jq -r '.error // empty')
       if [ -n "$api_error" ]; then
-        compliance_status="ERROR: $api_error"
+        err_msg="ERROR: $api_error"
       elif [ -z "$result_text" ]; then
-        compliance_status="ERROR: empty result from model"
+        err_msg="ERROR: empty result from model"
       else
-        compliance_status="PARSE_ERROR: heading not found in response (check prompt/heading text still matches)"
+        err_msg="PARSE_ERROR: heading not found in response (check prompt/heading text still matches)"
       fi
-      log "     WARNING: $compliance_status"
+      log "     WARNING: $err_msg"
+      write_row "$dc" "$alloc_id" "$customer_name" "$err_msg" "$err_msg" "" "" "" "" "" ""
     else
-      log "     compliance_status: $compliance_status"
+      result_summary=$(printf '%s' "$compliance_status" | grep -oiE 'NON-COMPLIANT|CONDITIONAL|COMPLIANT' | head -1)
+      [ -z "$result_summary" ] && result_summary="UNKNOWN"
+      log "     result_summary: $result_summary"
+      write_row "$dc" "$alloc_id" "$customer_name" "$result_summary" "${section_values[@]}"
     fi
 
-    write_row "$dc" "$alloc_id" "$customer_name" "$compliance_status"
     sleep "$SLEEP_BETWEEN"
   done <<< "$alloc_ids"
 done
