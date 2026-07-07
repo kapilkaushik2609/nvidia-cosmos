@@ -1,13 +1,10 @@
-const express = require("express");
 const fetch = require("node-fetch");
 const { VLLM_URL, MODEL } = require("../config");
 const { ensureVLLM, resetIdle } = require("../services/vllmProcess");
 const { loadThermalImageContent } = require("../services/thermalImage");
 
-const router = express.Router();
-
 // Structured thermal prediction — Cosmos returns per-row risk + hotspot for map overlay
-router.post("/predict-thermal", async (req, res) => {
+async function predictThermal(req, res) {
   try {
     await ensureVLLM();
     const { totalKW, globalLoad, coolingOk, rowStats, topRisks, facility } =
@@ -88,10 +85,10 @@ URGENT_ACTION: [max 12 words — most critical action ops team should take now]`
     console.error("[predict-thermal]", err.message);
     res.status(500).json({ error: err.message });
   }
-});
+}
 
 // Simulation AI analysis — mode: 'general' | 'compliance' | 'physics'
-router.post("/analyze-simulation", async (req, res) => {
+async function analyzeSimulation(req, res) {
   try {
     await ensureVLLM();
 
@@ -251,6 +248,6 @@ Provide a concise analysis:
     console.error("[analyze-simulation]", err.message);
     res.status(500).json({ error: err.message });
   }
-});
+}
 
-module.exports = router;
+module.exports = { predictThermal, analyzeSimulation };

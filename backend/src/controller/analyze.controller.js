@@ -1,16 +1,11 @@
-const express = require("express");
-const multer = require("multer");
 const fetch = require("node-fetch");
 const path = require("path");
 const fs = require("fs");
 const { VLLM_URL, MODEL, ALLOC_BASE } = require("../config");
 const { ensureVLLM, resetIdle } = require("../services/vllmProcess");
 
-const upload = multer({ storage: multer.memoryStorage() });
-const router = express.Router();
-
 // Analyze — auto-starts vLLM if stopped, waits for it to be ready
-router.post("/analyze", upload.single("image"), async (req, res) => {
+async function analyzeImage(req, res) {
   try {
     await ensureVLLM();
 
@@ -65,10 +60,10 @@ router.post("/analyze", upload.single("image"), async (req, res) => {
     console.error("[analyze]", err.message);
     res.status(500).json({ error: err.message });
   }
-});
+}
 
 // Thermal image analysis — reads from ALLOC_BASE, sends directly to vLLM
-router.post("/analyze-thermal", upload.single("image"), async (req, res) => {
+async function analyzeThermal(req, res) {
   try {
     await ensureVLLM();
 
@@ -132,6 +127,6 @@ router.post("/analyze-thermal", upload.single("image"), async (req, res) => {
     console.error("[analyze-thermal]", err.message);
     res.status(500).json({ error: err.message });
   }
-});
+}
 
-module.exports = router;
+module.exports = { analyzeImage, analyzeThermal };

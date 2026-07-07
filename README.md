@@ -6,9 +6,9 @@ React + Node.js frontend for the Cosmos3-Nano vLLM server.
 
 **Backend**
 ```bash
-cd cosmos-ui
+cd cosmos-ui/backend
 npm install
-node server.js          # runs on :3000
+node src/server.js       # runs on :3000
 ```
 
 **Frontend (dev)**
@@ -22,8 +22,8 @@ npm run dev             # runs on :5173, proxies /api → :3000
 ```bash
 cd cosmos-ui/client
 npm run build           # outputs to client/dist/
-cd ..
-node server.js          # serves built React app + API on :3000
+cd ../backend
+node src/server.js       # serves built React app + API on :3000
 ```
 
 ## Environment Variables
@@ -35,5 +35,5 @@ node server.js          # serves built React app + API on :3000
 | `PORT`     | `3000`                   | Backend port             |
 
 ```bash
-VLLM_URL=http://localhost:8001 node server.js
+VLLM_URL=http://localhost:8001 node src/server.js
 ```

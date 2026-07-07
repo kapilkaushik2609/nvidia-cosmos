@@ -28,7 +28,7 @@
 |---|---|---|
 | Primary repo | `D:\ems\oasis\nvidia-cosmos\cosmos-ui\` | `~/nvidia-cosmos/` |
 | Mirror (keep in sync) | `D:\ems\oasis\omniverse\cosmos-ui\` | — |
-| Server entry point | `server.js` | — |
+| Server entry point | `backend/src/server.js` (backend code lives under `backend/`) | — |
 | React frontend | `client/src/` | — |
 | Simulation component | `client/src/components/SimulationPanel.jsx` | — |
 
@@ -141,16 +141,18 @@ row_factor: {1: 1.000, 2: 1.002, 3: 1.004}
 
 ---
 
-## server.js Key Facts
+## Backend Key Facts
 
-- `OASIS_API = process.env.OASIS_API || "http://103.204.95.220:7040"`
+Backend now lives under `backend/` (`backend/src/app.js` + `server.js`, `config/`, `services/`, `controller/`, `routes/` — MVC-ish split, no more one giant `server.js`).
+
+- `OASIS_API = process.env.OASIS_API || "http://103.204.95.220:7040"` (in `backend/src/config`)
 - `ALLOC_BASE = process.env.ALLOC_BASE || ''` — empty by default; only used to optionally load a local `thermal_map_composite.png` as visual context for Cosmos analysis
-- Static file routes (`/thermal`, `/powerdraw`, `/temperature`) are **commented out** — data comes from OASIS API
-- **Recurring issue:** `server.js` truncates at `app.listen(...)` template literal when edited with file tools. After any edit, run:
+- Static file routes (`/thermal`, `/powerdraw`, `/temperature`) are **commented out** in `app.js` — data comes from OASIS API
+- **Recurring issue (historical, from the single-file era):** the old `server.js` used to truncate at its trailing `app.listen(...)` template literal when edited with file tools. Now that the backend is split into small files under `backend/src/`, run `node --check <file>` on whatever you edited:
   ```bash
-  node --check server.js
+  node --check backend/src/<path-to-file>.js
   ```
-  If it fails, run the Python repair script (strips null bytes, repairs the truncated `app.listen` block).
+  If it fails, run the Python repair script (strips null bytes, repairs a truncated block).
 
 ---
 
@@ -194,7 +196,7 @@ http://103.204.95.220:5174
 
 ## Known Issues / Watch-outs
 
-1. **server.js truncation** — file loses its last ~8 lines after edits via AI tools. Always `node --check` after editing.
+1. **File truncation after AI edits** — historically hit the old single-file `server.js`; now that the backend is split under `backend/src/`, always `node --check <file>` after editing any of them.
 2. **`ALLOC_BASE` must be defined** — even as `''` — or `/api/analyze-simulation` throws `ReferenceError`.
 3. **Layout API key is `layout_elements`** — not `racks`, not `components`. If this ever changes, update `extractRackLayout`.
 4. **`??` + `||` mixing** — requires explicit parens in Babel/Vite. Use `a ?? (b || c)` not `a ?? b || c`.

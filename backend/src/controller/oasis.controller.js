@@ -1,11 +1,9 @@
-const express = require("express");
 const fetch = require("node-fetch");
 const { OASIS_API } = require("../config");
 
 // Proxies allocation API endpoints from the OASIS backend (port 7040)
-const router = express.Router();
 
-router.get("/allocations/:datacenter", async (req, res) => {
+async function getAllocations(req, res) {
   try {
     const upstream = await fetch(
       `${OASIS_API}/api/allocation/all/${req.params.datacenter}`,
@@ -16,9 +14,9 @@ router.get("/allocations/:datacenter", async (req, res) => {
     console.error("[oasis/allocations]", err.message);
     res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
   }
-});
+}
 
-router.get("/allocation/:id/power-temp", async (req, res) => {
+async function getPowerTemp(req, res) {
   try {
     const upstream = await fetch(
       `${OASIS_API}/api/allocation/${req.params.id}/power-temp-summary`,
@@ -29,9 +27,9 @@ router.get("/allocation/:id/power-temp", async (req, res) => {
     console.error("[oasis/power-temp]", err.message);
     res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
   }
-});
+}
 
-router.get("/allocation/:id/thermal", async (req, res) => {
+async function getThermal(req, res) {
   try {
     const upstream = await fetch(
       `${OASIS_API}/api/allocation/thermal/${req.params.id}`,
@@ -42,9 +40,9 @@ router.get("/allocation/:id/thermal", async (req, res) => {
     console.error("[oasis/thermal]", err.message);
     res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
   }
-});
+}
 
-router.get("/allocation/:id/report", async (req, res) => {
+async function getReport(req, res) {
   try {
     const upstream = await fetch(
       `${OASIS_API}/api/allocation/single/${req.params.id}`,
@@ -55,9 +53,9 @@ router.get("/allocation/:id/report", async (req, res) => {
     console.error("[oasis/report]", err.message);
     res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
   }
-});
+}
 
-router.get("/allocation/:id/layout", async (req, res) => {
+async function getLayout(req, res) {
   try {
     const upstream = await fetch(
       `${OASIS_API}/api/allocation/2d-layout/${req.params.id}`,
@@ -68,9 +66,9 @@ router.get("/allocation/:id/layout", async (req, res) => {
     console.error("[oasis/layout]", err.message);
     res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
   }
-});
+}
 
-router.get("/allocation/:id/thermal-image", async (req, res) => {
+async function getThermalImage(req, res) {
   try {
     const upstream = await fetch(
       `${OASIS_API}/api/assets/simulation/allocation/${req.params.id}/thermal/thermal_map.png`,
@@ -82,6 +80,13 @@ router.get("/allocation/:id/thermal-image", async (req, res) => {
     console.error("[oasis/thermal-image]", err.message);
     res.status(502).json({ error: `OASIS API unreachable: ${err.message}` });
   }
-});
+}
 
-module.exports = router;
+module.exports = {
+  getAllocations,
+  getPowerTemp,
+  getThermal,
+  getReport,
+  getLayout,
+  getThermalImage,
+};

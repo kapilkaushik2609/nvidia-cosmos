@@ -11,10 +11,12 @@ A React + Express UI for **NVIDIA Cosmos3-Nano**, a vision-language model served
 
 ## Commands
 
-Backend (repo root):
+Backend (from `backend/`):
 ```bash
+cd backend
 npm install
-node server.js          # runs on :7086 (serves API + client/dist if built)
+node src/server.js       # runs on :7086 (serves API + client/dist if built)
+# or: npm start / npm run dev (both just run `node src/server.js`)
 ```
 
 Frontend dev (separate terminal, from `client/`):
@@ -28,13 +30,13 @@ Frontend production build:
 ```bash
 cd client
 npm run build             # outputs client/dist/
-cd ..
-node server.js            # now serves the built SPA + API from one process
+cd ../backend
+node src/server.js         # now serves the built SPA + API from one process
 ```
 
 There is no test suite, linter, or typechecker configured in either `package.json` — don't invent commands for these.
 
-### Key environment variables (set before `node server.js`)
+### Key environment variables (set before `node src/server.js`)
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -46,7 +48,7 @@ There is no test suite, linter, or typechecker configured in either `package.jso
 | `IDLE_TIMEOUT_MIN` | `10` | Minutes of inactivity before vLLM subprocess is auto-killed |
 | `COSMOS_TP` | `2` | Tensor-parallel GPU count for the vLLM subprocess (`1` = single-GPU mode) |
 
-vLLM itself is a separate process (not part of this repo) — see `COSMOS_RUNSHEET.md` for how to install/run it standalone, including GPU/CUDA prerequisites and troubleshooting. `server.js` can also spawn/manage it itself (see below).
+vLLM itself is a separate process (not part of this repo) — see `COSMOS_RUNSHEET.md` for how to install/run it standalone, including GPU/CUDA prerequisites and troubleshooting. The backend can also spawn/manage it itself (see below).
 
 ### Deployment
 
@@ -56,18 +58,40 @@ This repo is mirrored to a second path (`omniverse/cosmos-ui`, per `context.md`)
 
 ## Architecture
 
-### Backend (`server.js` entry point + `src/` modules)
+### Backend (`backend/`)
 
-`server.js` itself is now just the Express bootstrap: CORS/JSON middleware, static SPA serving, mounting the route modules below, `app.listen`, and the `SIGINT` handler. All actual logic lives under `src/`:
+Standard Express MVC-ish layout, all under `backend/src/`:
 
-- `src/config.js` — every env-derived constant (`VLLM_URL`, `ALLOC_BASE`, `MODEL`, `PORT`, `OASIS_API`, `IDLE_TIMEOUT_MS`, `STARTUP_MAX_MS`, `POLL_INTERVAL_MS`, `COSMOS_TP`). Add new env vars here, not inline in a route file.
-- `src/services/vllmProcess.js` — the on-demand vLLM process manager: rather than assuming vLLM is always running, this can `spawn()` the `vllm serve` CLI itself (hardcoded path `/home/block2/cosmos-reasoner/bin/vllm`), poll `/health` until ready, and auto-kill it after `IDLE_TIMEOUT_MIN` of no requests. Exports `ensureVLLM()` / `stopVLLM()` / `resetIdle()` / `getState()`. Every route that talks to the model calls `ensureVLLM()` first; `getState()` backs `GET /api/health`'s `"stopped" | "starting" | "running"` response.
-- `src/services/thermalImage.js` — `loadThermalImageContent(allocationId)`, fetches the per-allocation thermal map from OASIS for image-grounded prompts (returns `null`, never a stale local fallback, if unavailable).
-- `src/routes/health.routes.js` — `GET /api/health`, `POST /api/start`, `POST /api/stop`.
-- `src/routes/analyze.routes.js` — `POST /api/analyze`, `POST /api/analyze-thermal`. Owns the `multer` upload instance.
-- `src/routes/simulation.routes.js` — `POST /api/predict-thermal`, `POST /api/analyze-simulation`. Both build an OpenAI-style `chat/completions` payload (image + text content parts) and POST it to `${VLLM_URL}/v1/chat/completions`, embedding live datacenter metrics (rack loads, row stats, ASHRAE thresholds) in hand-written prompts — when modifying prompt text, keep the strict output format expected by `predict-thermal`'s regex parser (`ROW_1_RISK:`, `PREDICTED_MAX_TEMP:`, etc.).
-- `src/routes/oasis.routes.js` — `/api/oasis/*`, thin passthrough to an external allocation-management backend (`OASIS_API`) for allocation lists, thermal snapshots, power/temp summaries, 2D rack layouts, and the per-allocation thermal image. This is the *live data* source for the Simulation panel; static file routes for `/thermal`, `/powerdraw`, `/temperature`, `/config.json` were removed in favor of this proxy (see commented-out lines near the top of `server.js` — don't resurrect them without checking why they were removed).
-- Express (in `server.js`) serves the built SPA (`client/dist`) as static files and falls back to `index.html` for any unmatched route (SPA routing).
+```
+backend/
+  package.json              # main: src/server.js; start/dev both run it
+  src/
+    app.js                   # builds and exports the Express app (middleware + route mounting) — no listen()
+    server.js                # requires ./app, calls app.listen, owns the SIGINT handler
+    config/index.js          # every env-derived constant
+    services/                # framework-agnostic logic, no req/res
+      vllmProcess.js
+      thermalImage.js
+    controller/               # route handler functions — (req, res) => ..., no path definitions
+      health.controller.js
+      analyze.controller.js
+      simulation.controller.js
+      oasis.controller.js
+    routes/                   # express.Router() — just wires paths to controller functions
+      health.routes.js
+      analyze.routes.js
+      simulation.routes.js
+      oasis.routes.js
+```
+
+- `config/index.js` — every env-derived constant (`VLLM_URL`, `ALLOC_BASE`, `MODEL`, `PORT`, `OASIS_API`, `IDLE_TIMEOUT_MS`, `STARTUP_MAX_MS`, `POLL_INTERVAL_MS`, `COSMOS_TP`). Add new env vars here, not inline in a controller.
+- `services/vllmProcess.js` — the on-demand vLLM process manager: rather than assuming vLLM is always running, this can `spawn()` the `vllm serve` CLI itself (hardcoded path `/home/block2/cosmos-reasoner/bin/vllm`), poll `/health` until ready, and auto-kill it after `IDLE_TIMEOUT_MIN` of no requests. Exports `ensureVLLM()` / `stopVLLM()` / `resetIdle()` / `getState()`. Every controller that talks to the model calls `ensureVLLM()` first; `getState()` backs `GET /api/health`'s `"stopped" | "starting" | "running"` response.
+- `services/thermalImage.js` — `loadThermalImageContent(allocationId)`, fetches the per-allocation thermal map from OASIS for image-grounded prompts (returns `null`, never a stale local fallback, if unavailable).
+- `controller/health.controller.js` — handlers for `GET /api/health`, `POST /api/start`, `POST /api/stop`.
+- `controller/analyze.controller.js` — handlers for `POST /api/analyze`, `POST /api/analyze-thermal`. The `multer` upload instance lives in the matching `routes/analyze.routes.js` (route-level middleware, not controller logic).
+- `controller/simulation.controller.js` — handlers for `POST /api/predict-thermal`, `POST /api/analyze-simulation`. Both build an OpenAI-style `chat/completions` payload (image + text content parts) and POST it to `${VLLM_URL}/v1/chat/completions`, embedding live datacenter metrics (rack loads, row stats, ASHRAE thresholds) in hand-written prompts — when modifying prompt text, keep the strict output format expected by `predict-thermal`'s regex parser (`ROW_1_RISK:`, `PREDICTED_MAX_TEMP:`, etc.).
+- `controller/oasis.controller.js` — handlers for `/api/oasis/*`, thin passthrough to an external allocation-management backend (`OASIS_API`) for allocation lists, thermal snapshots, power/temp summaries, 2D rack layouts, and the per-allocation thermal image. This is the *live data* source for the Simulation panel; static file routes for `/thermal`, `/powerdraw`, `/temperature`, `/config.json` were removed in favor of this proxy (see commented-out lines near the top of `app.js` — don't resurrect them without checking why they were removed).
+- `app.js` serves the built SPA (`client/dist`, resolved as `../../client/dist` from `backend/src/`) as static files and falls back to `index.html` for any unmatched route (SPA routing).
 
 ### Frontend (`client/src`)
 
@@ -87,16 +111,16 @@ Plain React (no router, no state library) — `App.jsx` holds a `view` string (`
 ### Data flow summary
 
 ```
-Simulation UI ⇄ server.js (/api/oasis/*)        ⇄ OASIS backend (allocations, layout, thermal)
-Simulation UI ⇄ server.js (/api/predict-thermal, /api/analyze-simulation, /api/analyze-thermal)
+Simulation UI ⇄ backend (/api/oasis/*)        ⇄ OASIS backend (allocations, layout, thermal)
+Simulation UI ⇄ backend (/api/predict-thermal, /api/analyze-simulation, /api/analyze-thermal)
                     ⇄ vLLM (/v1/chat/completions) ⇄ Cosmos3-Nano model
 ```
 
 ### Gotchas
 
 - `client/src/App.jsx.clean` is a stray backup copy of `App.jsx`, not imported/built by Vite. Don't confuse it with the real entry point.
-- Ports differ between docs: `README.md` mentions `:3000`, but the actual default (`server.js`, `vite.config.js` proxy) is `:7086`. Trust the code over the README on this.
-- Repo root also contains standalone data snapshots (`powerdraw/`, `temperature/`, `thermal/`, `floorplan.png`, `model_3d.json`, `model_glb.glb`, `report.json`, `config.json`) that predate the OASIS API proxy and are no longer served directly by `server.js`; they're reference/sample data, not live inputs.
-- **AI file-editing tools have previously truncated backend files** at trailing template literals (per `context.md`), back when `server.js` was one large file. Now that the backend is split under `src/` (see Architecture above), the risk is smaller per-file, but still run `node --check <file>` on whichever file you edited (and `node --check server.js`) before considering a backend change done.
-- `ALLOC_BASE` must always be defined as at minimum `''` — several routes (e.g. `/api/analyze-simulation`) reference it unconditionally and will throw `ReferenceError` if the fallback is ever removed.
+- Ports differ between docs: `README.md` mentions `:3000`, but the actual default (`backend/src/config`, `vite.config.js` proxy) is `:7086`. Trust the code over the README on this.
+- Repo root also contains standalone data snapshots (`powerdraw/`, `temperature/`, `thermal/`, `floorplan.png`, `model_3d.json`, `model_glb.glb`, `report.json`, `config.json`) that predate the OASIS API proxy and are no longer served directly by the backend; they're reference/sample data, not live inputs.
+- **AI file-editing tools have previously truncated backend files** at trailing template literals (per `context.md`), back when the whole backend was one `server.js` file at the repo root. Now that it's split under `backend/src/` (see Architecture above), the risk is smaller per-file, but still run `node --check <file>` on whichever file you edited before considering a backend change done.
+- `ALLOC_BASE` must always be defined as at minimum `''` — it's read in `backend/src/config` and used by `analyze.controller.js`'s local-file fallback; several other places reference config values unconditionally and will throw `ReferenceError` if a fallback default is ever removed.
 - Nullish-coalescing/OR mixing needs explicit parens under this Babel/Vite setup: write `a ?? (b || c)`, not `a ?? b || c` (raised as a real gotcha in past sessions, see `context.md`).

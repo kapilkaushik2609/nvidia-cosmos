@@ -1,12 +1,9 @@
-const express = require("express");
 const fetch = require("node-fetch");
 const { VLLM_URL } = require("../config");
 const { ensureVLLM, stopVLLM, getState } = require("../services/vllmProcess");
 
-const router = express.Router();
-
 // Status — returns "stopped" | "starting" | "running"
-router.get("/health", async (_req, res) => {
+async function getHealth(_req, res) {
   const vllmState = getState();
   let vllmOk = false;
   if (vllmState === "running") {
@@ -20,22 +17,22 @@ router.get("/health", async (_req, res) => {
     vllm: vllmOk ? "ok" : vllmState,
     url: VLLM_URL,
   });
-});
+}
 
 // Pre-warm the model manually
-router.post("/start", async (_req, res) => {
+async function startModel(_req, res) {
   try {
     await ensureVLLM();
     res.json({ status: "running" });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
-});
+}
 
 // Stop the model manually
-router.post("/stop", (_req, res) => {
+function stopModel(_req, res) {
   stopVLLM();
   res.json({ status: "stopped" });
-});
+}
 
-module.exports = router;
+module.exports = { getHealth, startModel, stopModel };
