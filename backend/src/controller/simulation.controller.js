@@ -187,20 +187,20 @@ Provide a structured compliance assessment. Where the allocation has a named ten
 6. ASME V&V 20 GAP — Identify discrepancies between formula-based simulation and the thermal image baseline that require documented validation of the facility's environmental delivery, with uncertainty quantification per ASME V&V 20.
 7. COMPLIANCE RISK RATING — LOW / MEDIUM / HIGH / CRITICAL with justification referencing SLA/contractual exposure and the specific TC 9.9 class threshold being approached or breached.`;
     } else if (mode === "physics") {
-      prompt = `You are a datacenter thermal engineer with deep expertise in thermodynamics, computational fluid dynamics (CFD), heat transfer, and building management systems.
+      prompt = `You are a datacenter operations analyst with access to rack-level temperature and power readings. You do NOT have CFD (computational fluid dynamics) simulation data, and you were not trained on thermal physics or airflow modeling. Your analysis must be based on the observed temperature/power patterns below and standard industry rules of thumb — not fluid dynamics simulation. Be explicit whenever a statement is a pattern-based observation rather than a physics-grounded calculation, and recommend physical CFD or a sensor sweep wherever real validation would be needed.
 
 This facility uses hot-aisle/cold-aisle containment with N+1 precision CRAC cooling.
-Physics model: idle power ${idleKW.toFixed(1)} kW/rack, peak ${peakKW.toFixed(1)} kW/rack, thermal coefficient 0.969 deg C/kW, ambient supply 18 deg C.
+Physics model (linear approximation, not a CFD model): idle power ${idleKW.toFixed(1)} kW/rack, peak ${peakKW.toFixed(1)} kW/rack, thermal coefficient 0.969 deg C/kW, ambient supply 18 deg C.
 
 ${dataBlock}
 
-Provide a physics-based thermal engineering analysis:
-1. THERMAL ENVELOPE — Current operating margin from thermal design limit. Which racks are approaching their design envelope? Express as percentage of headroom remaining.
-2. POWER DENSITY ANALYSIS — Flag zones with dangerous power density (kW per rack footprint). Identify any thermal runaway risk zones where adjacent rack heat load compounds.
-3. AIRFLOW ASSESSMENT — Based on the thermal image baseline and load distribution, identify likely hot-aisle/cold-aisle mixing issues, bypass airflow paths, or dead zones with poor convective cooling.
-4. COOLING HEADROOM — Quantify remaining cooling capacity in kW. At what IT load percentage does the cooling system reach saturation? What is the thermal cascade failure threshold under current CRAC state?
-5. OPERATING ENVELOPE — State the min/max safe power envelope per rack and total facility under current cooling conditions. What is the absolute ceiling before forced shutdown is required?
-6. LOAD DELTA PREDICTION — If IT load increases from current by +10% / +20% / +30%, predict the temperature delta (deg C) per row and identify which row breaches the allowable limit first.`;
+Provide a pattern-based thermal observation report — not a CFD simulation:
+1. THERMAL ENVELOPE — Current operating margin from thermal design limit, based on the reported temperatures. Which racks are approaching their design envelope? Express as percentage of headroom remaining.
+2. POWER DENSITY OBSERVATIONS — Flag zones with high reported power density (kW per rack footprint). Identify rows where adjacent rack heat load appears to compound, based on the temperature/power numbers — not an airflow simulation.
+3. TEMPERATURE PATTERN ASSESSMENT — Based on the temperature readings and thermal image (if provided), describe patterns consistent with hot-aisle/cold-aisle mixing, bypass airflow, or poor cooling coverage. State explicitly that this is inference from temperature patterns, not a CFD airflow model, and recommend physical CFD or a sensor sweep to confirm.
+4. COOLING HEADROOM — Quantify remaining cooling capacity in kW from the reported numbers. At what IT load percentage does the cooling system reach saturation? What is the thermal cascade failure threshold under current CRAC state?
+5. OPERATING ENVELOPE — State the min/max safe power envelope per rack and total facility under current cooling conditions, based on the provided thermal coefficient. What is the absolute ceiling before forced shutdown is required?
+6. LOAD DELTA ESTIMATE — If IT load increases from current by +10% / +20% / +30%, extrapolate the temperature delta (deg C) per row using the provided linear thermal coefficient — flag this as an estimate from the linear model, not a validated CFD prediction, and identify which row would breach the allowable limit first.`;
     } else {
       // General / legacy mode
       prompt = `You are a datacenter thermal management AI analyzing ${facilityLabel} (${dims}${rackCount} racks, ${numRows} rows, ${designKW} kW IT design capacity).
