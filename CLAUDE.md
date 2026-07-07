@@ -56,12 +56,18 @@ This repo is mirrored to a second path (`omniverse/cosmos-ui`, per `context.md`)
 
 ## Architecture
 
-### Backend (`server.js`, single file, no router modules)
+### Backend (`server.js` entry point + `src/` modules)
 
-- **On-demand vLLM process manager**: rather than assuming vLLM is always running, `server.js` can `spawn()` the `vllm serve` CLI itself (hardcoded path `/home/block2/cosmos-reasoner/bin/vllm`), poll `/health` until ready, and auto-kill it after `IDLE_TIMEOUT_MIN` of no requests (`resetIdle`/`stopVLLM`/`ensureVLLM`). Every route that talks to the model calls `ensureVLLM()` first. `GET /api/health` reports `"stopped" | "starting" | "running"`; `POST /api/start` / `/api/stop` control it manually.
-- **Chat/vision routes** (`/api/analyze`, `/api/analyze-thermal`, `/api/predict-thermal`, `/api/analyze-simulation`) all build an OpenAI-style `chat/completions` payload (image + text content parts) and POST it to `${VLLM_URL}/v1/chat/completions`. The three "simulation" routes construct large hand-written prompts embedding live datacenter metrics (rack loads, row stats, ASHRAE thresholds) — when modifying prompt text, keep the strict output format expected by `predict-thermal`'s regex parser (`ROW_1_RISK:`, `PREDICTED_MAX_TEMP:`, etc.).
-- **OASIS proxy** (`/api/oasis/*`): thin passthrough to an external allocation-management backend (`OASIS_API`) for allocation lists, thermal snapshots, power/temp summaries, and 2D rack layouts. This is the *live data* source for the Simulation panel; static file routes for `/thermal`, `/powerdraw`, `/temperature`, `/config.json` were removed in favor of this proxy (see commented-out lines near the top of `server.js` — don't resurrect them without checking why they were removed).
-- Express serves the built SPA (`client/dist`) as static files and falls back to `index.html` for any unmatched route (SPA routing).
+`server.js` itself is now just the Express bootstrap: CORS/JSON middleware, static SPA serving, mounting the route modules below, `app.listen`, and the `SIGINT` handler. All actual logic lives under `src/`:
+
+- `src/config.js` — every env-derived constant (`VLLM_URL`, `ALLOC_BASE`, `MODEL`, `PORT`, `OASIS_API`, `IDLE_TIMEOUT_MS`, `STARTUP_MAX_MS`, `POLL_INTERVAL_MS`, `COSMOS_TP`). Add new env vars here, not inline in a route file.
+- `src/services/vllmProcess.js` — the on-demand vLLM process manager: rather than assuming vLLM is always running, this can `spawn()` the `vllm serve` CLI itself (hardcoded path `/home/block2/cosmos-reasoner/bin/vllm`), poll `/health` until ready, and auto-kill it after `IDLE_TIMEOUT_MIN` of no requests. Exports `ensureVLLM()` / `stopVLLM()` / `resetIdle()` / `getState()`. Every route that talks to the model calls `ensureVLLM()` first; `getState()` backs `GET /api/health`'s `"stopped" | "starting" | "running"` response.
+- `src/services/thermalImage.js` — `loadThermalImageContent(allocationId)`, fetches the per-allocation thermal map from OASIS for image-grounded prompts (returns `null`, never a stale local fallback, if unavailable).
+- `src/routes/health.routes.js` — `GET /api/health`, `POST /api/start`, `POST /api/stop`.
+- `src/routes/analyze.routes.js` — `POST /api/analyze`, `POST /api/analyze-thermal`. Owns the `multer` upload instance.
+- `src/routes/simulation.routes.js` — `POST /api/predict-thermal`, `POST /api/analyze-simulation`. Both build an OpenAI-style `chat/completions` payload (image + text content parts) and POST it to `${VLLM_URL}/v1/chat/completions`, embedding live datacenter metrics (rack loads, row stats, ASHRAE thresholds) in hand-written prompts — when modifying prompt text, keep the strict output format expected by `predict-thermal`'s regex parser (`ROW_1_RISK:`, `PREDICTED_MAX_TEMP:`, etc.).
+- `src/routes/oasis.routes.js` — `/api/oasis/*`, thin passthrough to an external allocation-management backend (`OASIS_API`) for allocation lists, thermal snapshots, power/temp summaries, 2D rack layouts, and the per-allocation thermal image. This is the *live data* source for the Simulation panel; static file routes for `/thermal`, `/powerdraw`, `/temperature`, `/config.json` were removed in favor of this proxy (see commented-out lines near the top of `server.js` — don't resurrect them without checking why they were removed).
+- Express (in `server.js`) serves the built SPA (`client/dist`) as static files and falls back to `index.html` for any unmatched route (SPA routing).
 
 ### Frontend (`client/src`)
 
@@ -91,6 +97,6 @@ Simulation UI ⇄ server.js (/api/predict-thermal, /api/analyze-simulation, /api
 - `client/src/App.jsx.clean` is a stray backup copy of `App.jsx`, not imported/built by Vite. Don't confuse it with the real entry point.
 - Ports differ between docs: `README.md` mentions `:3000`, but the actual default (`server.js`, `vite.config.js` proxy) is `:7086`. Trust the code over the README on this.
 - Repo root also contains standalone data snapshots (`powerdraw/`, `temperature/`, `thermal/`, `floorplan.png`, `model_3d.json`, `model_glb.glb`, `report.json`, `config.json`) that predate the OASIS API proxy and are no longer served directly by `server.js`; they're reference/sample data, not live inputs.
-- **`server.js` has a known editor-truncation bug**: per `context.md`, AI file-editing tools have previously truncated the file at the trailing `app.listen(...)` template literal near the end. After editing `server.js`, run `node --check server.js` before considering the change done.
+- **AI file-editing tools have previously truncated backend files** at trailing template literals (per `context.md`), back when `server.js` was one large file. Now that the backend is split under `src/` (see Architecture above), the risk is smaller per-file, but still run `node --check <file>` on whichever file you edited (and `node --check server.js`) before considering a backend change done.
 - `ALLOC_BASE` must always be defined as at minimum `''` — several routes (e.g. `/api/analyze-simulation`) reference it unconditionally and will throw `ReferenceError` if the fallback is ever removed.
 - Nullish-coalescing/OR mixing needs explicit parens under this Babel/Vite setup: write `a ?? (b || c)`, not `a ?? b || c` (raised as a real gotcha in past sessions, see `context.md`).
