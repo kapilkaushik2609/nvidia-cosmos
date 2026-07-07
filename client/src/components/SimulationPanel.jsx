@@ -464,7 +464,7 @@ export default function SimulationPanel(){
           <div className={`${styles.cosmosResult} ${compError?styles.cosmosError:''}`}>
             {compLoading&&<div style={{color:'#76b900',textAlign:'center'}}>⏳ Cosmos running compliance assessment…</div>}
             {compError&&<div>❌ Compliance: {compError}</div>}
-            {compResult&&<><div className={styles.cosmosResultHeader}>📋 ASHRAE GL-14 / ASME V&amp;V 20 Compliance Report {compUsedImage?'(thermal image + data)':'(scenario data)'}</div>{compResult}</>}
+            {compResult&&<><div className={styles.cosmosResultHeader}>📋 ASHRAE TC 9.9 / ASME V&amp;V 20 Compliance Report {compUsedImage?'(thermal image + data)':'(scenario data)'}</div>{compResult}</>}
           </div>
         )}
         {(physResult||physLoading||physError)&&(
