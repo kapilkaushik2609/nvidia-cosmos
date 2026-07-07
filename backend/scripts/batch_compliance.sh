@@ -11,8 +11,13 @@
 #   LIMIT=3 ./batch_compliance.sh                # only first 3 allocations per datacenter (dry run)
 #   BACKEND_URL=http://103.204.95.220:7086 ./batch_compliance.sh
 #   OUTFILE=results.csv DATACENTERS="CHI1-CHI3" ./batch_compliance.sh
+#
+# NOTE: deliberately does NOT use `set -e` — this is a long batch job over many
+# allocations, and one allocation's API hiccup (bad JSON, no compliance match,
+# timeout) must not silently kill the whole run. Every failure is caught and
+# written as an ERROR row so the loop always continues to the next allocation.
 
-set -euo pipefail
+set -u
 
 BACKEND_URL="${BACKEND_URL:-http://localhost:7086}"
 OUTFILE="${OUTFILE:-test_allocation_reasoner_v1_compliance_only.csv}"
@@ -27,12 +32,12 @@ command -v jq >/dev/null 2>&1 || {
 
 # ── Warm up vLLM before hammering it with ~100+ sequential requests ────────
 echo "Warming up vLLM…"
-curl -s -X POST "$BACKEND_URL/api/start" >/dev/null
+curl -s --max-time 30 -X POST "$BACKEND_URL/api/start" >/dev/null
 status="starting"
 for i in $(seq 1 60); do
-  status=$(curl -s "$BACKEND_URL/api/health" | jq -r '.status')
+  status=$(curl -s --max-time 10 "$BACKEND_URL/api/health" | jq -r '.status // "unknown"' 2>/dev/null)
   [ "$status" = "running" ] && break
-  echo "  vLLM status: $status ($i/60)"
+  echo "  vLLM status: ${status:-unknown} ($i/60)"
   sleep 5
 done
 if [ "$status" != "running" ]; then
@@ -43,11 +48,20 @@ echo "vLLM ready."
 
 echo "datacenter,allocation_id,customer_name,compliance_status" > "$OUTFILE"
 
+# Appends one CSV row, CSV-escaping the two free-text fields. Never fails.
+write_row() {
+  local dc="$1" alloc_id="$2" customer="$3" status_text="$4"
+  local esc_customer esc_status
+  esc_customer=$(printf '%s' "$customer" | sed 's/"/""/g')
+  esc_status=$(printf '%s' "$status_text" | sed 's/"/""/g')
+  echo "$dc,$alloc_id,\"$esc_customer\",\"$esc_status\"" >> "$OUTFILE"
+}
+
 for dc in "${DATACENTERS[@]}"; do
   echo "== Datacenter: $dc =="
-  alloc_ids=$(curl -s "$BACKEND_URL/api/oasis/allocations/$dc" \
+  alloc_ids=$(curl -s --max-time 30 "$BACKEND_URL/api/oasis/allocations/$dc" \
     | jq -r 'if type=="array" then .[] else (.allocations // .data // [])[] end
-             | if type=="string" then . else .allocationId end' 2>/dev/null || true)
+             | if type=="string" then . else .allocationId end' 2>/dev/null)
 
   if [ -z "$alloc_ids" ]; then
     echo "  (no allocations found for $dc — skipping)"
@@ -64,8 +78,21 @@ for dc in "${DATACENTERS[@]}"; do
     count=$((count + 1))
     echo "  -> $alloc_id"
 
-    layout_json=$(curl -s "$BACKEND_URL/api/oasis/allocation/$alloc_id/layout")
-    thermal_json=$(curl -s "$BACKEND_URL/api/oasis/allocation/$alloc_id/thermal")
+    layout_json=$(curl -s --max-time 30 "$BACKEND_URL/api/oasis/allocation/$alloc_id/layout")
+    if ! echo "$layout_json" | jq -e . >/dev/null 2>&1; then
+      echo "     ERROR: layout fetch returned invalid/empty JSON — skipping"
+      write_row "$dc" "$alloc_id" "" "ERROR: layout fetch failed"
+      sleep "$SLEEP_BETWEEN"
+      continue
+    fi
+
+    thermal_json=$(curl -s --max-time 30 "$BACKEND_URL/api/oasis/allocation/$alloc_id/thermal")
+    if ! echo "$thermal_json" | jq -e . >/dev/null 2>&1; then
+      echo "     ERROR: thermal fetch returned invalid/empty JSON — skipping"
+      write_row "$dc" "$alloc_id" "" "ERROR: thermal fetch failed"
+      sleep "$SLEEP_BETWEEN"
+      continue
+    fi
 
     cfg=$(echo "$layout_json" | jq '.data.configuration // .configuration // {}')
     customer_name=$(echo "$cfg" | jq -r '.customer_name // "unknown"')
@@ -78,7 +105,8 @@ for dc in "${DATACENTERS[@]}"; do
     rows_lookup=$(echo "$layout_json" | jq -c '
       (.data // .) as $p |
       ($p.layout_elements // $p.racks // $p.rack_list // $p.components // [])
-      | map({key: (.id // .rack_id), value: (.row // 1)}) | from_entries')
+      | map({key: (.id // .rack_id), value: (.row // 1)}) | from_entries' 2>/dev/null)
+    [ -z "$rows_lookup" ] && rows_lookup='{}'
 
     # Join real thermal readings with row assignment, aggregate into the
     # rowStats/topRisks shape /api/analyze-simulation expects — using the
@@ -113,21 +141,44 @@ for dc in "${DATACENTERS[@]}"; do
                      then ([$totalKW / ($rackCount * $peakKW), 1] | min) else 0 end),
         coolingOk: true,
         rowStats: $rowStats, topRisks: $topRisks
-      }')
+      }' 2>/dev/null)
+
+    if [ -z "$body" ]; then
+      echo "     ERROR: failed to build request body (see jq errors above) — skipping"
+      write_row "$dc" "$alloc_id" "$customer_name" "ERROR: request body build failed"
+      sleep "$SLEEP_BETWEEN"
+      continue
+    fi
 
     response=$(curl -s --max-time 120 -X POST "$BACKEND_URL/api/analyze-simulation" \
       -H "Content-Type: application/json" -d "$body")
 
-    compliance_status=$(echo "$response" | jq -r '.result // ""' \
+    if ! echo "$response" | jq -e . >/dev/null 2>&1; then
+      echo "     ERROR: analyze-simulation returned invalid/empty JSON — skipping"
+      write_row "$dc" "$alloc_id" "$customer_name" "ERROR: invalid API response"
+      sleep "$SLEEP_BETWEEN"
+      continue
+    fi
+
+    result_text=$(echo "$response" | jq -r '.result // ""')
+    compliance_status=$(printf '%s' "$result_text" \
       | grep -o '\*\*COMPLIANCE STATUS:\*\*[^*]*' \
       | sed -E 's/\*\*COMPLIANCE STATUS:\*\*[[:space:]]*//' \
       | tr '\n' ' ' | sed -E 's/  +/ /g; s/[[:space:]]+$//')
-    [ -z "$compliance_status" ] && compliance_status="PARSE_ERROR: $(echo "$response" | jq -c '.error // .result // "no response"' | head -c 200)"
 
-    esc_customer=$(echo "$customer_name" | sed 's/"/""/g')
-    esc_status=$(echo "$compliance_status" | sed 's/"/""/g')
+    if [ -z "$compliance_status" ]; then
+      api_error=$(echo "$response" | jq -r '.error // empty')
+      if [ -n "$api_error" ]; then
+        compliance_status="ERROR: $api_error"
+      elif [ -z "$result_text" ]; then
+        compliance_status="ERROR: empty result from model"
+      else
+        compliance_status="PARSE_ERROR: heading not found in response (check prompt/heading text still matches)"
+      fi
+      echo "     WARNING: $compliance_status"
+    fi
 
-    echo "$dc,$alloc_id,\"$esc_customer\",\"$esc_status\"" >> "$OUTFILE"
+    write_row "$dc" "$alloc_id" "$customer_name" "$compliance_status"
     sleep "$SLEEP_BETWEEN"
   done <<< "$alloc_ids"
 done
