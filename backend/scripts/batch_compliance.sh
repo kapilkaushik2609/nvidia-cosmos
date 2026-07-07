@@ -198,10 +198,24 @@ for dc in "${DATACENTERS[@]}"; do
     fi
 
     result_text=$(echo "$response" | jq -r '.result // ""')
-    compliance_status=$(printf '%s' "$result_text" \
-      | grep -o '\*\*COMPLIANCE STATUS:\*\*[^*]*' \
-      | sed -E 's/\*\*COMPLIANCE STATUS:\*\*[[:space:]]*//' \
-      | tr '\n' ' ' | sed -E 's/  +/ /g; s/[[:space:]]+$//')
+    # Cosmos's heading format isn't consistent run-to-run — sometimes
+    # "**COMPLIANCE STATUS:** VALUE" on one line, sometimes "**COMPLIANCE
+    # STATUS**" with the (also bolded) value on the next line, sometimes a
+    # plain numbered list with no bold/colon at all. Grab everything between
+    # the COMPLIANCE STATUS heading and the next known heading, instead of
+    # anchoring on a specific colon/same-line/bold shape.
+    compliance_status=$(printf '%s' "$result_text" | awk '
+      /COMPLIANCE STATUS/ && !found {
+        found = 1
+        line = $0
+        sub(/.*COMPLIANCE STATUS[:]?\*{0,2}/, "", line)
+        if (line ~ /[A-Za-z]/) print line
+        next
+      }
+      found && /(EQUIPMENT CLASS RISK|ENVELOPE RISK|VIOLATION REPORT|SLA VIOLATION REPORT)/ { exit }
+      found { print }
+    ' | tr -d '*' | tr '\n' ' ' \
+      | sed -E 's/  +/ /g; s/^[[:space:]]+//; s/[[:space:]]+$//; s/^[-—:[:space:]]+//')
 
     if [ -z "$compliance_status" ]; then
       api_error=$(echo "$response" | jq -r '.error // empty')
