@@ -15,8 +15,16 @@
 #   datacenter, allocation_id, customer_name, result_summary,
 #   compliance_status, equipment_class_risk, violation_report,
 #   reportable_incidents, corrective_actions, asme_vv_gap,
-#   compliance_risk_rating, is_correct, comments
-# (is_correct / comments are left blank for manual review.)
+#   compliance_risk_rating, actual_violations, actual_critical, actual_max_temp,
+#   is_correct, comments
+#
+# actual_violations/actual_critical/actual_max_temp are the REAL numbers
+# computed directly from the same OASIS thermal data sent to Cosmos — ground
+# truth, not a Cosmos claim. is_correct/comments are normally left blank for
+# manual review, EXCEPT when those real numbers directly contradict Cosmos's
+# own compliance_status/risk_rating (e.g. real violations>0 but Cosmos said
+# COMPLIANT) — that's auto-flagged FALSE with an explanatory comment so a
+# human only has to review the genuinely ambiguous/qualitative rows.
 #
 # Two output files:
 #   OUTFILE (CSV)  — one row per allocation, columns above
@@ -116,6 +124,38 @@ csv_escape() {
   printf '%s' "$1" | sed 's/"/""/g'
 }
 
+# Cross-checks Cosmos's stated result against the REAL numbers already
+# computed from OASIS thermal data (not Cosmos's own claims). Sets globals
+# AUTO_IS_CORRECT ("FALSE" or "") and AUTO_COMMENT. Only flags clear logical
+# contradictions — silence (both left "") means "no objective contradiction
+# found", NOT "confirmed correct" — qualitative columns still need a human.
+auto_check() {
+  local summary="$1" risk="$2" viol="$3" crit="$4"
+  local risk_upper flags=() f joined=""
+  risk_upper=$(printf '%s' "$risk" | tr '[:lower:]' '[:upper:]')
+
+  if [[ "$viol" =~ ^[0-9]+$ ]]; then
+    [ "$viol" -gt 0 ] && [ "$summary" = "COMPLIANT" ] \
+      && flags+=("$viol rack(s) exceed 27C in real data but Cosmos reported COMPLIANT")
+    [ "$viol" -eq 0 ] && [ "$summary" = "NON-COMPLIANT" ] \
+      && flags+=("0 racks exceed 27C in real data but Cosmos reported NON-COMPLIANT")
+  fi
+  if [[ "$crit" =~ ^[0-9]+$ ]] && [ "$crit" -gt 0 ] && [[ "$risk_upper" == LOW* ]]; then
+    flags+=("$crit rack(s) at/above 32C (critical) in real data but risk rating says LOW")
+  fi
+
+  if [ ${#flags[@]} -gt 0 ]; then
+    AUTO_IS_CORRECT="FALSE"
+    for f in "${flags[@]}"; do
+      [ -z "$joined" ] && joined="$f" || joined="$joined; $f"
+    done
+    AUTO_COMMENT="Auto-flag: $joined"
+  else
+    AUTO_IS_CORRECT=""
+    AUTO_COMMENT=""
+  fi
+}
+
 log "=== Batch compliance run starting — backend=$BACKEND_URL datacenters=${DATACENTERS[*]} limit=$LIMIT ==="
 
 # ── Warm up vLLM before hammering it with ~100+ sequential requests ────────
@@ -134,19 +174,21 @@ if [ "$status" != "running" ]; then
 fi
 log "vLLM ready."
 
-echo "datacenter,allocation_id,customer_name,result_summary,compliance_status,equipment_class_risk,violation_report,reportable_incidents,corrective_actions,asme_vv_gap,compliance_risk_rating,is_correct,comments" > "$OUTFILE"
+echo "datacenter,allocation_id,customer_name,result_summary,compliance_status,equipment_class_risk,violation_report,reportable_incidents,corrective_actions,asme_vv_gap,compliance_risk_rating,actual_violations,actual_critical,actual_max_temp,is_correct,comments" > "$OUTFILE"
 
-# Appends one CSV row. Args: dc alloc_id customer result_summary <7 section values>
-# is_correct/comments are always appended blank, for manual review later.
+# Appends one CSV row.
+# Args: dc alloc_id customer result_summary actual_violations actual_critical
+#       actual_max_temp is_correct comments <7 section values...>
 write_row() {
   local dc="$1" alloc_id="$2" customer="$3" result_summary="$4"
-  shift 4
+  local av="$5" ac="$6" amt="$7" is_correct="$8" comments="$9"
+  shift 9
   local row="$dc,$alloc_id,\"$(csv_escape "$customer")\",\"$(csv_escape "$result_summary")\""
   local s
   for s in "$@"; do
     row+=",\"$(csv_escape "$s")\""
   done
-  row+=",,"
+  row+=",\"$(csv_escape "$av")\",\"$(csv_escape "$ac")\",\"$(csv_escape "$amt")\",\"$(csv_escape "$is_correct")\",\"$(csv_escape "$comments")\""
   echo "$row" >> "$OUTFILE"
 }
 
@@ -178,7 +220,7 @@ for dc in "${DATACENTERS[@]}"; do
     log_data "$alloc_id — GET /api/oasis/allocation/$alloc_id/layout — response" "$layout_json"
     if ! echo "$layout_json" | jq -e . >/dev/null 2>&1; then
       log "     ERROR: layout fetch returned invalid/empty JSON — skipping"
-      write_row "$dc" "$alloc_id" "" "ERROR: layout fetch failed" "" "" "" "" "" "" ""
+      write_row "$dc" "$alloc_id" "" "ERROR: layout fetch failed" "" "" "" "" "" "" "" "" "" "" ""
       sleep "$SLEEP_BETWEEN"
       continue
     fi
@@ -187,7 +229,7 @@ for dc in "${DATACENTERS[@]}"; do
     log_data "$alloc_id — GET /api/oasis/allocation/$alloc_id/thermal — response" "$thermal_json"
     if ! echo "$thermal_json" | jq -e . >/dev/null 2>&1; then
       log "     ERROR: thermal fetch returned invalid/empty JSON — skipping"
-      write_row "$dc" "$alloc_id" "" "ERROR: thermal fetch failed" "" "" "" "" "" "" ""
+      write_row "$dc" "$alloc_id" "" "ERROR: thermal fetch failed" "" "" "" "" "" "" "" "" "" "" ""
       sleep "$SLEEP_BETWEEN"
       continue
     fi
@@ -245,10 +287,17 @@ for dc in "${DATACENTERS[@]}"; do
 
     if [ -z "$body" ]; then
       log "     ERROR: failed to build request body (see $LOGFILE for jq errors) — skipping"
-      write_row "$dc" "$alloc_id" "$customer_name" "ERROR: request body build failed" "" "" "" "" "" "" ""
+      write_row "$dc" "$alloc_id" "$customer_name" "ERROR: request body build failed" "" "" "" "" "" "" "" "" "" "" ""
       sleep "$SLEEP_BETWEEN"
       continue
     fi
+
+    # Ground truth — computed straight from the real thermal data, independent
+    # of anything Cosmos says. Available for every path from here on, even if
+    # the model call itself fails, since $body already has these baked in.
+    actual_violations=$(echo "$body" | jq -r '.violations // ""' 2>/dev/null)
+    actual_critical=$(echo "$body" | jq -r '.critical // ""' 2>/dev/null)
+    actual_max_temp=$(echo "$body" | jq -r '.maxTemp // ""' 2>/dev/null)
 
     response=$(curl -s --max-time 120 -X POST "$BACKEND_URL/api/analyze-simulation" \
       -H "Content-Type: application/json" -d "$body")
@@ -256,7 +305,8 @@ for dc in "${DATACENTERS[@]}"; do
 
     if ! echo "$response" | jq -e . >/dev/null 2>&1; then
       log "     ERROR: analyze-simulation returned invalid/empty JSON — skipping"
-      write_row "$dc" "$alloc_id" "$customer_name" "ERROR: invalid API response" "" "" "" "" "" "" ""
+      write_row "$dc" "$alloc_id" "$customer_name" "ERROR: invalid API response" \
+        "$actual_violations" "$actual_critical" "$actual_max_temp" "" "" "" "" "" "" "" ""
       sleep "$SLEEP_BETWEEN"
       continue
     fi
@@ -280,12 +330,23 @@ for dc in "${DATACENTERS[@]}"; do
         err_msg="PARSE_ERROR: heading not found in response (check prompt/heading text still matches)"
       fi
       log "     WARNING: $err_msg"
-      write_row "$dc" "$alloc_id" "$customer_name" "$err_msg" "$err_msg" "" "" "" "" "" ""
+      write_row "$dc" "$alloc_id" "$customer_name" "$err_msg" \
+        "$actual_violations" "$actual_critical" "$actual_max_temp" "" "" \
+        "$err_msg" "" "" "" "" ""
     else
       result_summary=$(printf '%s' "$compliance_status" | grep -oiE 'NON-COMPLIANT|CONDITIONAL|COMPLIANT' | head -1)
       [ -z "$result_summary" ] && result_summary="UNKNOWN"
-      log "     result_summary: $result_summary"
-      write_row "$dc" "$alloc_id" "$customer_name" "$result_summary" "${section_values[@]}"
+
+      auto_check "$result_summary" "${section_values[6]}" "$actual_violations" "$actual_critical"
+      if [ -n "$AUTO_IS_CORRECT" ]; then
+        log "     result_summary: $result_summary  [$AUTO_COMMENT]"
+      else
+        log "     result_summary: $result_summary"
+      fi
+
+      write_row "$dc" "$alloc_id" "$customer_name" "$result_summary" \
+        "$actual_violations" "$actual_critical" "$actual_max_temp" \
+        "$AUTO_IS_CORRECT" "$AUTO_COMMENT" "${section_values[@]}"
     fi
 
     sleep "$SLEEP_BETWEEN"
