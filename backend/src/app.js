@@ -6,6 +6,7 @@ const healthRoutes = require("./routes/health.routes");
 const analyzeRoutes = require("./routes/analyze.routes");
 const simulationRoutes = require("./routes/simulation.routes");
 const oasisRoutes = require("./routes/oasis.routes");
+const batchTestRoutes = require("./routes/batchTest.routes");
 
 // client/dist lives at the repo root, two levels up from backend/src/
 const CLIENT_DIST = path.join(__dirname, "..", "..", "client", "dist");
@@ -29,6 +30,7 @@ app.use("/api", healthRoutes);
 app.use("/api", analyzeRoutes);
 app.use("/api", simulationRoutes);
 app.use("/api/oasis", oasisRoutes);
+app.use("/api", batchTestRoutes);
 
 app.get("*", (_req, res) => {
   res.sendFile(path.join(CLIENT_DIST, "index.html"));

@@ -1,0 +1,10 @@
+[2026-07-08 16:18:31] === Folder-driven batch compliance run starting — allocations_dir=/d/ems/oasis/nvidia-cosmos/cosmos-ui/backend/scripts/../../allocations backend=http://localhost:7086 datacenters=CHI1-CHI3 DFW3-DFW5 temp_field=mean_c limit=0 ===
+[2026-07-08 16:18:31] Warming up vLLM…
+[2026-07-08 16:18:36]   vLLM status: unknown (1/60)
+[2026-07-08 16:18:44]   vLLM status: unknown (2/60)
+[2026-07-08 16:18:51]   vLLM status: unknown (3/60)
+[2026-07-08 16:18:59]   vLLM status: unknown (4/60)
+[2026-07-08 16:19:04]   vLLM status: stopped (5/60)
+[2026-07-08 16:19:10]   vLLM status: stopped (6/60)
+[2026-07-08 16:19:17]   vLLM status: unknown (7/60)
+[2026-07-08 16:19:25]   vLLM status: unknown (8/60)
