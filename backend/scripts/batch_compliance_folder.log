@@ -1,10 +1,464 @@
-[2026-07-08 16:18:31] === Folder-driven batch compliance run starting — allocations_dir=/d/ems/oasis/nvidia-cosmos/cosmos-ui/backend/scripts/../../allocations backend=http://localhost:7086 datacenters=CHI1-CHI3 DFW3-DFW5 temp_field=mean_c limit=0 ===
-[2026-07-08 16:18:31] Warming up vLLM…
-[2026-07-08 16:18:36]   vLLM status: unknown (1/60)
-[2026-07-08 16:18:44]   vLLM status: unknown (2/60)
-[2026-07-08 16:18:51]   vLLM status: unknown (3/60)
-[2026-07-08 16:18:59]   vLLM status: unknown (4/60)
-[2026-07-08 16:19:04]   vLLM status: stopped (5/60)
-[2026-07-08 16:19:10]   vLLM status: stopped (6/60)
-[2026-07-08 16:19:17]   vLLM status: unknown (7/60)
-[2026-07-08 16:19:25]   vLLM status: unknown (8/60)
+[2026-07-09 10:21:00] === Folder-driven batch compliance run starting — allocations_dir=/d/ems/oasis/nvidia-cosmos/cosmos-ui/backend/scripts/../../allocations backend=http://103.204.95.220:7086 datacenters=CHI1-CHI3 DFW3-DFW5 temp_field=mean_c limit=2 ===
+[2026-07-09 10:21:00] Warming up vLLM…
+[2026-07-09 10:21:31]   vLLM status: starting (1/60)
+[2026-07-09 10:21:36]   vLLM status: starting (2/60)
+[2026-07-09 10:21:42]   vLLM status: starting (3/60)
+[2026-07-09 10:21:48]   vLLM status: starting (4/60)
+[2026-07-09 10:21:53]   vLLM status: starting (5/60)
+[2026-07-09 10:21:58]   vLLM status: starting (6/60)
+[2026-07-09 10:22:04]   vLLM status: starting (7/60)
+[2026-07-09 10:22:09]   vLLM status: starting (8/60)
+[2026-07-09 10:22:14]   vLLM status: starting (9/60)
+[2026-07-09 10:22:20]   vLLM status: starting (10/60)
+[2026-07-09 10:22:25]   vLLM status: starting (11/60)
+[2026-07-09 10:22:30]   vLLM status: starting (12/60)
+[2026-07-09 10:22:36]   vLLM status: starting (13/60)
+[2026-07-09 10:22:41]   vLLM status: starting (14/60)
+[2026-07-09 10:22:46]   vLLM status: starting (15/60)
+[2026-07-09 10:22:52]   vLLM status: starting (16/60)
+[2026-07-09 10:22:57]   vLLM status: starting (17/60)
+[2026-07-09 10:23:02]   vLLM status: starting (18/60)
+[2026-07-09 10:23:08]   vLLM status: starting (19/60)
+[2026-07-09 10:23:13]   vLLM status: starting (20/60)
+[2026-07-09 10:23:18] vLLM ready.
+[2026-07-09 10:23:19] == Datacenter: CHI1-CHI3 ==
+[2026-07-09 10:23:28]   -> 20230115-132905-UTC_CHI_625_2000_AI
+----- 20230115-132905-UTC_CHI_625_2000_AI — built request body for /api/analyze-simulation-local (image omitted from log) -----
+{
+  "mode": "compliance",
+  "facility": {
+    "datacenterId": "CHI1-CHI3",
+    "allocationId": "20230115-132905-UTC_CHI_625_2000_AI",
+    "customerName": "Orbit AI Analytics",
+    "rackCount": 26,
+    "numRows": 3,
+    "designKW": 625.0,
+    "peakKW": 30.0,
+    "widthFt": 50.0,
+    "lengthFt": 40.0
+  },
+  "scenario": "Real sensor baseline (mean_c, folder-driven)",
+  "totalKW": 780,
+  "facilKW": 1092,
+  "pue": 1.4,
+  "maxTemp": 24.759536743164062,
+  "violations": 0,
+  "critical": 0,
+  "globalLoad": 1,
+  "coolingOk": true,
+  "rowStats": [
+    {
+      "row": 1,
+      "count": 9,
+      "avgTemp": 24.658795674641926,
+      "violations": 0
+    },
+    {
+      "row": 2,
+      "count": 9,
+      "avgTemp": 24.7092227935791,
+      "violations": 0
+    },
+    {
+      "row": 3,
+      "count": 8,
+      "avgTemp": 24.758880615234375,
+      "violations": 0
+    }
+  ],
+  "topRisks": [
+    {
+      "rack_id": "RACK-026",
+      "row": 3,
+      "temp_c": 24.759536743164062,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-024",
+      "row": 3,
+      "temp_c": 24.7593994140625,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-020",
+      "row": 3,
+      "temp_c": 24.75921630859375,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-021",
+      "row": 3,
+      "temp_c": 24.759140014648438,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-019",
+      "row": 3,
+      "temp_c": 24.75894546508789,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-023",
+      "row": 3,
+      "temp_c": 24.758403778076172,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-025",
+      "row": 3,
+      "temp_c": 24.758235931396484,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-022",
+      "row": 3,
+      "temp_c": 24.758167266845703,
+      "power_kw": 30.0
+    }
+  ]
+}
+-------------------
+----- 20230115-132905-UTC_CHI_625_2000_AI — POST /api/analyze-simulation-local — response -----
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>PayloadTooLargeError: request entity too large<br> &nbsp; &nbsp;at readStream (/home/block2/nvidia-cosmos/backend/node_modules/raw-body/index.js:163:17)<br> &nbsp; &nbsp;at getRawBody (/home/block2/nvidia-cosmos/backend/node_modules/raw-body/index.js:116:12)<br> &nbsp; &nbsp;at read (/home/block2/nvidia-cosmos/backend/node_modules/body-parser/lib/read.js:79:3)<br> &nbsp; &nbsp;at jsonParser (/home/block2/nvidia-cosmos/backend/node_modules/body-parser/lib/types/json.js:138:5)<br> &nbsp; &nbsp;at Layer.handle [as handle_request] (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/layer.js:95:5)<br> &nbsp; &nbsp;at trim_prefix (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:328:13)<br> &nbsp; &nbsp;at /home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:286:9<br> &nbsp; &nbsp;at router.process_params (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:346:12)<br> &nbsp; &nbsp;at next (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:280:10)<br> &nbsp; &nbsp;at cors (/home/block2/nvidia-cosmos/backend/node_modules/cors/lib/index.js:188:7)</pre>
+</body>
+</html>
+-------------------
+[2026-07-09 10:23:31]      ERROR: analyze-simulation-local returned invalid/empty JSON — skipping
+[2026-07-09 10:23:33]   -> 20230120-061221-UTC_CHI_400_3000_AI
+----- 20230120-061221-UTC_CHI_400_3000_AI — built request body for /api/analyze-simulation-local (image omitted from log) -----
+{
+  "mode": "compliance",
+  "facility": {
+    "datacenterId": "CHI1-CHI3",
+    "allocationId": "20230120-061221-UTC_CHI_400_3000_AI",
+    "customerName": "Vertex AI Systems",
+    "rackCount": 34,
+    "numRows": 3,
+    "designKW": 400.0,
+    "peakKW": 30.0,
+    "widthFt": 50.0,
+    "lengthFt": 60.0
+  },
+  "scenario": "Real sensor baseline (mean_c, folder-driven)",
+  "totalKW": 1020,
+  "facilKW": 1428,
+  "pue": 1.4,
+  "maxTemp": 24.759634017944336,
+  "violations": 0,
+  "critical": 0,
+  "globalLoad": 1,
+  "coolingOk": true,
+  "rowStats": [
+    {
+      "row": 1,
+      "count": 12,
+      "avgTemp": 24.65881617863973,
+      "violations": 0
+    },
+    {
+      "row": 2,
+      "count": 11,
+      "avgTemp": 24.70888987454501,
+      "violations": 0
+    },
+    {
+      "row": 3,
+      "count": 11,
+      "avgTemp": 24.758953441273082,
+      "violations": 0
+    }
+  ],
+  "topRisks": [
+    {
+      "rack_id": "RACK-031",
+      "row": 3,
+      "temp_c": 24.759634017944336,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-028",
+      "row": 3,
+      "temp_c": 24.759628295898438,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-027",
+      "row": 3,
+      "temp_c": 24.75942039489746,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-030",
+      "row": 3,
+      "temp_c": 24.758987426757812,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-024",
+      "row": 3,
+      "temp_c": 24.758909225463867,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-029",
+      "row": 3,
+      "temp_c": 24.758895874023438,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-034",
+      "row": 3,
+      "temp_c": 24.75884437561035,
+      "power_kw": 30.0
+    },
+    {
+      "rack_id": "RACK-033",
+      "row": 3,
+      "temp_c": 24.758758544921875,
+      "power_kw": 30.0
+    }
+  ]
+}
+-------------------
+----- 20230120-061221-UTC_CHI_400_3000_AI — POST /api/analyze-simulation-local — response -----
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>PayloadTooLargeError: request entity too large<br> &nbsp; &nbsp;at readStream (/home/block2/nvidia-cosmos/backend/node_modules/raw-body/index.js:163:17)<br> &nbsp; &nbsp;at getRawBody (/home/block2/nvidia-cosmos/backend/node_modules/raw-body/index.js:116:12)<br> &nbsp; &nbsp;at read (/home/block2/nvidia-cosmos/backend/node_modules/body-parser/lib/read.js:79:3)<br> &nbsp; &nbsp;at jsonParser (/home/block2/nvidia-cosmos/backend/node_modules/body-parser/lib/types/json.js:138:5)<br> &nbsp; &nbsp;at Layer.handle [as handle_request] (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/layer.js:95:5)<br> &nbsp; &nbsp;at trim_prefix (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:328:13)<br> &nbsp; &nbsp;at /home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:286:9<br> &nbsp; &nbsp;at router.process_params (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:346:12)<br> &nbsp; &nbsp;at next (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:280:10)<br> &nbsp; &nbsp;at cors (/home/block2/nvidia-cosmos/backend/node_modules/cors/lib/index.js:188:7)</pre>
+</body>
+</html>
+-------------------
+[2026-07-09 10:23:35]      ERROR: analyze-simulation-local returned invalid/empty JSON — skipping
+[2026-07-09 10:23:37]   (LIMIT=2 reached for CHI1-CHI3, stopping this datacenter)
+[2026-07-09 10:23:37] == Datacenter: DFW3-DFW5 ==
+[2026-07-09 10:23:47]   -> 20230123-225659-UTC_DFW_375_2800_STD
+----- 20230123-225659-UTC_DFW_375_2800_STD — built request body for /api/analyze-simulation-local (image omitted from log) -----
+{
+  "mode": "compliance",
+  "facility": {
+    "datacenterId": "DFW3-DFW5",
+    "allocationId": "20230123-225659-UTC_DFW_375_2800_STD",
+    "customerName": "Vertex AI Systems",
+    "rackCount": 52,
+    "numRows": 3,
+    "designKW": 375.0,
+    "peakKW": 17.5,
+    "widthFt": 70.0,
+    "lengthFt": 40.0
+  },
+  "scenario": "Real sensor baseline (mean_c, folder-driven)",
+  "totalKW": 910,
+  "facilKW": 1274,
+  "pue": 1.4,
+  "maxTemp": 24.759662628173828,
+  "violations": 0,
+  "critical": 0,
+  "globalLoad": 1,
+  "coolingOk": true,
+  "rowStats": [
+    {
+      "row": 1,
+      "count": 18,
+      "avgTemp": 24.65894815656874,
+      "violations": 0
+    },
+    {
+      "row": 2,
+      "count": 17,
+      "avgTemp": 24.708950828103458,
+      "violations": 0
+    },
+    {
+      "row": 3,
+      "count": 17,
+      "avgTemp": 24.759138780481674,
+      "violations": 0
+    }
+  ],
+  "topRisks": [
+    {
+      "rack_id": "RACK-045",
+      "row": 3,
+      "temp_c": 24.759662628173828,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-040",
+      "row": 3,
+      "temp_c": 24.759563446044922,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-041",
+      "row": 3,
+      "temp_c": 24.759550094604492,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-036",
+      "row": 3,
+      "temp_c": 24.759504318237305,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-042",
+      "row": 3,
+      "temp_c": 24.759384155273438,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-049",
+      "row": 3,
+      "temp_c": 24.759380340576172,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-046",
+      "row": 3,
+      "temp_c": 24.759355545043945,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-050",
+      "row": 3,
+      "temp_c": 24.75935173034668,
+      "power_kw": 17.5
+    }
+  ]
+}
+-------------------
+----- 20230123-225659-UTC_DFW_375_2800_STD — POST /api/analyze-simulation-local — response -----
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>PayloadTooLargeError: request entity too large<br> &nbsp; &nbsp;at readStream (/home/block2/nvidia-cosmos/backend/node_modules/raw-body/index.js:163:17)<br> &nbsp; &nbsp;at getRawBody (/home/block2/nvidia-cosmos/backend/node_modules/raw-body/index.js:116:12)<br> &nbsp; &nbsp;at read (/home/block2/nvidia-cosmos/backend/node_modules/body-parser/lib/read.js:79:3)<br> &nbsp; &nbsp;at jsonParser (/home/block2/nvidia-cosmos/backend/node_modules/body-parser/lib/types/json.js:138:5)<br> &nbsp; &nbsp;at Layer.handle [as handle_request] (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/layer.js:95:5)<br> &nbsp; &nbsp;at trim_prefix (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:328:13)<br> &nbsp; &nbsp;at /home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:286:9<br> &nbsp; &nbsp;at router.process_params (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:346:12)<br> &nbsp; &nbsp;at next (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:280:10)<br> &nbsp; &nbsp;at cors (/home/block2/nvidia-cosmos/backend/node_modules/cors/lib/index.js:188:7)</pre>
+</body>
+</html>
+-------------------
+[2026-07-09 10:23:49]      ERROR: analyze-simulation-local returned invalid/empty JSON — skipping
+[2026-07-09 10:23:51]   -> 20230311-193251-UTC_DFW_275_4900_STD
+----- 20230311-193251-UTC_DFW_275_4900_STD — built request body for /api/analyze-simulation-local (image omitted from log) -----
+{
+  "mode": "compliance",
+  "facility": {
+    "datacenterId": "DFW3-DFW5",
+    "allocationId": "20230311-193251-UTC_DFW_275_4900_STD",
+    "customerName": "Vertex AI Systems",
+    "rackCount": 48,
+    "numRows": 3,
+    "designKW": 275.0,
+    "peakKW": 17.5,
+    "widthFt": 70.0,
+    "lengthFt": 70.0
+  },
+  "scenario": "Real sensor baseline (mean_c, folder-driven)",
+  "totalKW": 840,
+  "facilKW": 1176,
+  "pue": 1.4,
+  "maxTemp": 24.759540557861328,
+  "violations": 0,
+  "critical": 0,
+  "globalLoad": 1,
+  "coolingOk": true,
+  "rowStats": [
+    {
+      "row": 1,
+      "count": 16,
+      "avgTemp": 24.658952713012695,
+      "violations": 0
+    },
+    {
+      "row": 2,
+      "count": 16,
+      "avgTemp": 24.70901095867157,
+      "violations": 0
+    },
+    {
+      "row": 3,
+      "count": 16,
+      "avgTemp": 24.758896231651306,
+      "violations": 0
+    }
+  ],
+  "topRisks": [
+    {
+      "rack_id": "RACK-035",
+      "row": 3,
+      "temp_c": 24.759540557861328,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-034",
+      "row": 3,
+      "temp_c": 24.759443283081055,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-041",
+      "row": 3,
+      "temp_c": 24.7592830657959,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-033",
+      "row": 3,
+      "temp_c": 24.759239196777344,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-037",
+      "row": 3,
+      "temp_c": 24.759092330932617,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-039",
+      "row": 3,
+      "temp_c": 24.759078979492188,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-040",
+      "row": 3,
+      "temp_c": 24.7590389251709,
+      "power_kw": 17.5
+    },
+    {
+      "rack_id": "RACK-043",
+      "row": 3,
+      "temp_c": 24.759004592895508,
+      "power_kw": 17.5
+    }
+  ]
+}
+-------------------
+----- 20230311-193251-UTC_DFW_275_4900_STD — POST /api/analyze-simulation-local — response -----
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Error</title>
+</head>
+<body>
+<pre>PayloadTooLargeError: request entity too large<br> &nbsp; &nbsp;at readStream (/home/block2/nvidia-cosmos/backend/node_modules/raw-body/index.js:163:17)<br> &nbsp; &nbsp;at getRawBody (/home/block2/nvidia-cosmos/backend/node_modules/raw-body/index.js:116:12)<br> &nbsp; &nbsp;at read (/home/block2/nvidia-cosmos/backend/node_modules/body-parser/lib/read.js:79:3)<br> &nbsp; &nbsp;at jsonParser (/home/block2/nvidia-cosmos/backend/node_modules/body-parser/lib/types/json.js:138:5)<br> &nbsp; &nbsp;at Layer.handle [as handle_request] (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/layer.js:95:5)<br> &nbsp; &nbsp;at trim_prefix (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:328:13)<br> &nbsp; &nbsp;at /home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:286:9<br> &nbsp; &nbsp;at router.process_params (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:346:12)<br> &nbsp; &nbsp;at next (/home/block2/nvidia-cosmos/backend/node_modules/express/lib/router/index.js:280:10)<br> &nbsp; &nbsp;at cors (/home/block2/nvidia-cosmos/backend/node_modules/cors/lib/index.js:188:7)</pre>
+</body>
+</html>
+-------------------
+[2026-07-09 10:23:54]      ERROR: analyze-simulation-local returned invalid/empty JSON — skipping
+[2026-07-09 10:23:56]   (LIMIT=2 reached for DFW3-DFW5, stopping this datacenter)
+[2026-07-09 10:23:56] Done. Results in test_allocation_reasoner_v1_compliance_only_folder.csv, full debug log in batch_compliance_folder.log

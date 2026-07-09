@@ -1,0 +1,5 @@
+datacenter,allocation_id,customer_name,result_summary,compliance_status,equipment_class_risk,violation_report,reportable_incidents,corrective_actions,asme_vv_gap,compliance_risk_rating,actual_violations,actual_critical,actual_max_temp,is_correct,comments
+CHI1-CHI3,20230115-132905-UTC_CHI_625_2000_AI,"Orbit AI Analytics","ERROR: invalid API response","","","","","","","0","0","24.759536743164062","",""
+CHI1-CHI3,20230120-061221-UTC_CHI_400_3000_AI,"Vertex AI Systems","ERROR: invalid API response","","","","","","","0","0","24.759634017944336","",""
+DFW3-DFW5,20230123-225659-UTC_DFW_375_2800_STD,"Vertex AI Systems","ERROR: invalid API response","","","","","","","0","0","24.759662628173828","",""
+DFW3-DFW5,20230311-193251-UTC_DFW_275_4900_STD,"Vertex AI Systems","ERROR: invalid API response","","","","","","","0","0","24.759540557861328","",""

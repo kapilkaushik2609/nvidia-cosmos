@@ -317,8 +317,14 @@ for dc in "${DATACENTERS[@]}"; do
     actual_critical=$(echo "$body" | jq -r '.critical // ""' 2>/dev/null)
     actual_max_temp=$(echo "$body" | jq -r '.maxTemp // ""' 2>/dev/null)
 
+    # Body (with embedded base64 image) is too large to pass as a curl argv
+    # argument (same ARG_MAX limit as the earlier jq --arg fix) — write it to
+    # a temp file and have curl read it with -d @file instead.
+    body_tmp=$(mktemp)
+    printf '%s' "$body" > "$body_tmp"
     response=$(curl -s --max-time 120 -X POST "$BACKEND_URL/api/analyze-simulation-local" \
-      -H "Content-Type: application/json" -d "$body")
+      -H "Content-Type: application/json" -d @"$body_tmp")
+    rm -f "$body_tmp"
     log_data "$alloc_id — POST /api/analyze-simulation-local — response" "$response"
 
     if ! echo "$response" | jq -e . >/dev/null 2>&1; then
