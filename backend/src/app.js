@@ -14,7 +14,11 @@ const CLIENT_DIST = path.join(__dirname, "..", "..", "client", "dist");
 const app = express();
 
 app.use(cors());
-app.use(express.json());
+// 20mb (default is 100kb): the testing-only /api/analyze-simulation-local route
+// (see batchTest.routes.js) sends a base64 thermal image inline in the body.
+// Harmless increase for every other route — none of them send bodies anywhere
+// close to 100kb today.
+app.use(express.json({ limit: "20mb" }));
 app.use(express.static(CLIENT_DIST));
 
 // Static allocation file routes removed — data now served via OASIS API proxy

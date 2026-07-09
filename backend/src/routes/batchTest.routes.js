@@ -3,16 +3,12 @@ const { analyzeSimulationLocal } = require("../controller/batchTest.controller")
 
 // Testing-only routes for the folder-driven batch scripts (backend/scripts/) —
 // separate from simulation.routes.js so the real analyze-simulation API is
-// never touched by this.
+// never touched by this. The larger body-size limit this route needs (for the
+// inline base64 thermal image) is set globally in app.js — a route-level
+// express.json() here would never run, since the app-wide one already
+// consumes/rejects the body first.
 const router = express.Router();
 
-// Base64 thermal images can be several hundred KB — larger than the app-wide
-// express.json() default (100kb). Scoped to just this route so the existing
-// API's body-size limit is left exactly as it was.
-router.post(
-  "/analyze-simulation-local",
-  express.json({ limit: "15mb" }),
-  analyzeSimulationLocal,
-);
+router.post("/analyze-simulation-local", analyzeSimulationLocal);
 
 module.exports = router;
