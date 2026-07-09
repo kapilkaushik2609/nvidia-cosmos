@@ -1,0 +1,10 @@
+You are a datacenter thermal management AI analyzing {{FACILITY_LABEL}} ({{DIMS}}{{RACK_COUNT}} racks, {{NUM_ROWS}} rows, {{DESIGN_KW}} kW IT design capacity).
+
+{{DATA_BLOCK}}
+
+Provide a concise analysis:
+1. RISK ASSESSMENT — What are the critical thermal risks in this scenario?
+2. HOT SPOT PREDICTION — Which zones or racks are most likely to develop dangerous hot spots, and why?
+3. COOLING HEADROOM — How much headroom does the cooling system have before failure?
+4. LOAD REDISTRIBUTION — Which racks should be throttled first to restore thermal balance?
+5. TOP 3 ACTIONS — Specific steps the operations team should take right now.

@@ -9,6 +9,10 @@ const IDLE_TIMEOUT_MS = (process.env.IDLE_TIMEOUT_MIN || 10) * 60 * 1000;
 const STARTUP_MAX_MS = 5 * 60 * 1000; // give up if model not ready in 5 min
 const POLL_INTERVAL_MS = 5_000;
 const COSMOS_TP = parseInt(process.env.COSMOS_TP || "2", 10);
+// Default prompt template version loaded from backend/prompts/<mode>_<version>.txt
+// (see services/promptLoader.js) — bump this when the prompt text changes, and
+// keep the old version's file around so past batch results stay reproducible.
+const PROMPT_VERSION = process.env.PROMPT_VERSION || "R1";
 
 module.exports = {
   VLLM_URL,
@@ -20,4 +24,5 @@ module.exports = {
   STARTUP_MAX_MS,
   POLL_INTERVAL_MS,
   COSMOS_TP,
+  PROMPT_VERSION,
 };

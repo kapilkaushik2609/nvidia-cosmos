@@ -1,6 +1,6 @@
 # OASIS × Cosmos — Project Progress
 
-> **Last updated:** July 7, 2026 (Session 4)  
+> **Last updated:** July 9, 2026 (Session 5)  
 > **Project:** `cosmos-ui` — datacenter simulation & AI analysis interface powered by NVIDIA Cosmos3-Nano  
 > **Linux server:** `block2@103-204-95-220` (SSH port 220)  
 > **Repo location:** `~/nvidia-cosmos/` on Linux | `D:\ems\oasis\nvidia-cosmos\cosmos-ui\` on Windows  
@@ -270,6 +270,20 @@ COSMOS_TP=1 npm run dev
 - Mentioned ASHRAE 3-level measurement (ground / middle / top)
 - Allocation selector deferred — Shubham has the APIs already
 - `plan.md` for the OSS data layer is a separate Oasis backend task
+
+---
+
+## Meeting Context (Rahul — Oasis Discussion 20, 2026-07-09)
+
+- Shared the 100-allocation batch compliance results (CSV) — Cosmos calls take ~10–15s each
+- Rahul's framing: Cosmos Reason is a **spatial/robotics-trained, physics-informed model** — the real value is comparing it against general vision-language models (Gemma 4, Qwen 3.6 VL, or whatever's newest) to see where each is strong, not treating Cosmos in isolation
+- **`allocations/` folder must not be committed** — real size is ~14–50 GB uncompressed, ~1.6 GB zipped. Decisions: gitignore it, make its path **configurable** (not a hardcoded relative default) so the pipeline just looks it up from config, README note that it must be dropped in manually
+- Rahul is splitting Omniverse/metaverse-related work into a **new separate repository** (tentatively "DC Omni"/"DC") — current repo stays OASIS-focused; not our action item, just context for future "keep the mirror in sync" questions
+- **Prompt must be identical across every model compared** — changing it per model invalidates the comparison. Treat it as a versioned artifact ("prompt template R1"), store it separately (CSV/JSON)
+- **Result files must be versioned/traceable** — embed model name + prompt template version + a date-time stamp in every output filename, so repeated runs don't clobber each other
+- `is_correct` review: Rahul wants an **external/independent** verification mechanism (not just cross-checking against the same ground-truth numbers already baked into the prompt) — he's still figuring out what that should look like; nothing concrete to build yet on this specific point
+- Also wants an updated README/runsheet for **native Cosmos setup** (environment only, not the codebase — he'll pull the git repo separately)
+- Shubham committed to running 2–3 models against the same allocation set with the same prompt template and sharing labeled, versioned result files by 2026-07-10
 
 ---
 
