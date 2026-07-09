@@ -124,35 +124,81 @@ csv_escape() {
   printf '%s' "$1" | sed 's/"/""/g'
 }
 
-# Cross-checks Cosmos's stated result against the REAL numbers already
-# computed from OASIS thermal data (not Cosmos's own claims). Sets globals
-# AUTO_IS_CORRECT ("FALSE" or "") and AUTO_COMMENT. Only flags clear logical
-# contradictions — silence (both left "") means "no objective contradiction
-# found", NOT "confirmed correct" — qualitative columns still need a human.
+# Joins array elements with "; " (bash's IFS-based [*] join only honors the
+# first IFS character, which would silently drop the space).
+join_semi() {
+  local out="" first=1 s
+  for s in "$@"; do
+    if [ "$first" -eq 1 ]; then out="$s"; first=0; else out="$out; $s"; fi
+  done
+  printf '%s' "$out"
+}
+
+# Always produces a definitive is_correct + comment (never blank) by checking
+# Cosmos's stated compliance_status and risk_rating against the REAL
+# violation/critical counts computed straight from OASIS thermal data (not
+# Cosmos's own claims). This only verifies what's objectively checkable — the
+# two numeric-backed fields — not the qualitative narrative sections
+# (violation_report, corrective_actions, etc.), which still need a human read.
+# Args: summary(COMPLIANT|NON-COMPLIANT|CONDITIONAL|UNKNOWN) risk_rating_text
+#       actual_violations actual_critical [rack_count]
 auto_check() {
-  local summary="$1" risk="$2" viol="$3" crit="$4"
-  local risk_upper flags=() f joined=""
+  local summary="$1" risk="$2" viol="$3" crit="$4" rack_count="${5:-}"
+  local risk_upper pass=() fail=() denom=""
   risk_upper=$(printf '%s' "$risk" | tr '[:lower:]' '[:upper:]')
+  [ -n "$rack_count" ] && denom="/$rack_count"
 
-  if [[ "$viol" =~ ^[0-9]+$ ]]; then
-    [ "$viol" -gt 0 ] && [ "$summary" = "COMPLIANT" ] \
-      && flags+=("$viol rack(s) exceed 27C in real data but Cosmos reported COMPLIANT")
-    [ "$viol" -eq 0 ] && [ "$summary" = "NON-COMPLIANT" ] \
-      && flags+=("0 racks exceed 27C in real data but Cosmos reported NON-COMPLIANT")
-  fi
-  if [[ "$crit" =~ ^[0-9]+$ ]] && [ "$crit" -gt 0 ] && [[ "$risk_upper" == LOW* ]]; then
-    flags+=("$crit rack(s) at/above 32C (critical) in real data but risk rating says LOW")
+  local nums_ok=0
+  [[ "$viol" =~ ^[0-9]+$ ]] && [[ "$crit" =~ ^[0-9]+$ ]] && nums_ok=1
+
+  if [ "$nums_ok" -eq 1 ]; then
+    # 1) compliance_status vs real violation count
+    local expected_status
+    if [ "$viol" -gt 0 ]; then expected_status="NON-COMPLIANT"; else expected_status="COMPLIANT"; fi
+    case "$summary" in
+      COMPLIANT|NON-COMPLIANT)
+        if [ "$summary" = "$expected_status" ]; then
+          pass+=("compliance status '$summary' matches real data ($viol$denom racks exceed 27C)")
+        else
+          fail+=("compliance status says $summary but real data shows $viol$denom rack(s) exceed 27C (expected $expected_status)")
+        fi
+        ;;
+    esac
+
+    # 2) risk_rating vs real critical/violation counts
+    if [ "$crit" -gt 0 ] && [[ "$risk_upper" == LOW* ]]; then
+      fail+=("risk rating '$risk' but $crit$denom rack(s) at/above 32C (critical) — should not be LOW")
+    elif [ "$viol" -gt 0 ] && [ "$crit" -eq 0 ] && [[ "$risk_upper" == LOW* ]]; then
+      fail+=("risk rating '$risk' but $viol$denom rack(s) exceed 27C (recommended limit) — should not be LOW")
+    elif [ "$viol" -eq 0 ] && [ "$crit" -eq 0 ] && [ -n "$risk_upper" ]; then
+      pass+=("risk rating '$risk' is consistent with 0 violations and 0 critical racks")
+    elif [ "$crit" -gt 0 ] && [ -n "$risk_upper" ] && [[ "$risk_upper" != LOW* ]]; then
+      pass+=("risk rating '$risk' is consistent with $crit$denom critical rack(s)")
+    fi
   fi
 
-  if [ ${#flags[@]} -gt 0 ]; then
+  # CONDITIONAL/UNKNOWN/unparseable — genuinely ambiguous, not a contradiction,
+  # but still needs a definitive-looking row per allocation, so say so plainly.
+  if [ "$nums_ok" -ne 1 ] || [ -z "$summary" ] || [ "$summary" = "CONDITIONAL" ] || [ "$summary" = "UNKNOWN" ]; then
+    if [ ${#fail[@]} -gt 0 ]; then
+      AUTO_IS_CORRECT="FALSE"
+      AUTO_COMMENT="Auto-flag: $(join_semi "${fail[@]}")"
+    else
+      AUTO_IS_CORRECT=""
+      AUTO_COMMENT="Not auto-verifiable: compliance_status is '${summary:-empty}' (ambiguous) or real violation/critical counts unavailable — needs manual review."
+    fi
+    return
+  fi
+
+  if [ ${#fail[@]} -gt 0 ]; then
     AUTO_IS_CORRECT="FALSE"
-    for f in "${flags[@]}"; do
-      [ -z "$joined" ] && joined="$f" || joined="$joined; $f"
-    done
-    AUTO_COMMENT="Auto-flag: $joined"
+    AUTO_COMMENT="Auto-flag: $(join_semi "${fail[@]}")"
+  elif [ ${#pass[@]} -gt 0 ]; then
+    AUTO_IS_CORRECT="TRUE"
+    AUTO_COMMENT="Auto-verified: $(join_semi "${pass[@]}")"
   else
     AUTO_IS_CORRECT=""
-    AUTO_COMMENT=""
+    AUTO_COMMENT="Not auto-verifiable from the numeric fields alone — needs manual review."
   fi
 }
 
@@ -337,7 +383,7 @@ for dc in "${DATACENTERS[@]}"; do
       result_summary=$(printf '%s' "$compliance_status" | grep -oiE 'NON-COMPLIANT|CONDITIONAL|COMPLIANT' | head -1)
       [ -z "$result_summary" ] && result_summary="UNKNOWN"
 
-      auto_check "$result_summary" "${section_values[6]}" "$actual_violations" "$actual_critical"
+      auto_check "$result_summary" "${section_values[6]}" "$actual_violations" "$actual_critical" "$rack_count"
       if [ -n "$AUTO_IS_CORRECT" ]; then
         log "     result_summary: $result_summary  [$AUTO_COMMENT]"
       else
