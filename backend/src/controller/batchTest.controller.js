@@ -124,37 +124,77 @@ ${imageContent ? "\nThe attached image is the real thermal baseline map of this 
       });
     }
 
-    const content = imageContent
-      ? [imageContent, { type: "text", text: prompt }]
-      : [{ type: "text", text: prompt }];
+    // Ollama's OpenAI-compat endpoint (/v1/chat/completions) puts reasoning
+    // model output in a separate "reasoning" field and leaves content empty
+    // until thinking finishes — and silently ignores a passthrough "think"
+    // field since it's not part of the OpenAI schema it decodes. Ollama's own
+    // native /api/chat endpoint honors "think": false directly, so Ollama
+    // models go through that endpoint instead (different request/response
+    // shape than vLLM's OpenAI-compatible one — confirmed via direct curl
+    // comparison against qwen3.5 on 2026-07-10: /v1/chat/completions never
+    // returned content even for a trivial prompt, /api/chat + think:false
+    // returned it instantly).
+    let upstream, data, resultText, usage;
 
-    const payload = {
-      model: modelEntry.model,
-      messages: [{ role: "user", content }],
-      max_tokens,
-      // Reasoning-capable Ollama models (e.g. qwen3.5) can spend the whole
-      // max_tokens budget on hidden thinking and never emit final content —
-      // Ollama's OpenAI-compatible endpoint accepts this passthrough field to
-      // turn that off. Harmless no-op for non-reasoning/non-Ollama models.
-      ...(modelEntry.provider === "ollama" ? { think: false } : {}),
-    };
+    if (modelEntry.provider === "ollama") {
+      const payload = {
+        model: modelEntry.model,
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+            ...(imageContent ? { images: [imageBase64] } : {}),
+          },
+        ],
+        think: false,
+        stream: false,
+      };
 
-    const upstream = await fetch(`${modelEntry.baseUrl}/v1/chat/completions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+      upstream = await fetch(`${modelEntry.baseUrl}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    const data = await upstream.json();
-    if (!upstream.ok)
-      return res.status(upstream.status).json({ error: JSON.stringify(data) });
+      data = await upstream.json();
+      if (!upstream.ok)
+        return res.status(upstream.status).json({ error: JSON.stringify(data) });
 
-    if (modelEntry.provider === "vllm") {
+      resultText = data.message?.content ?? "";
+      usage = {
+        prompt_tokens: data.prompt_eval_count,
+        completion_tokens: data.eval_count,
+      };
+    } else {
+      const content = imageContent
+        ? [imageContent, { type: "text", text: prompt }]
+        : [{ type: "text", text: prompt }];
+
+      const payload = {
+        model: modelEntry.model,
+        messages: [{ role: "user", content }],
+        max_tokens,
+      };
+
+      upstream = await fetch(`${modelEntry.baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      data = await upstream.json();
+      if (!upstream.ok)
+        return res.status(upstream.status).json({ error: JSON.stringify(data) });
+
+      resultText = data.choices?.[0]?.message?.content ?? "";
+      usage = data.usage ?? {};
+
       resetIdle();
     }
+
     res.json({
-      result: data.choices?.[0]?.message?.content ?? "",
-      usage: data.usage ?? {},
+      result: resultText,
+      usage,
       used_image: !!imageContent,
       mode,
       promptVersion,
