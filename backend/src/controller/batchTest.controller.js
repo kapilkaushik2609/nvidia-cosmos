@@ -97,7 +97,12 @@ ${(topRisks || [])
 ${imageContent ? "\nThe attached image is the real thermal baseline map of this datacenter." : "\nNo thermal baseline image is available for this allocation — base your analysis on the numbers above only."}`;
 
     let prompt;
-    let max_tokens = 1500;
+    // Reasoning models (e.g. qwen3.5, qwen3-vl in "thinking" mode) spend part of
+    // this budget on hidden reasoning tokens before emitting the final answer —
+    // 1500 was enough for Cosmos/Gemma4 but left reasoning models truncated with
+    // an empty content field (completion_tokens always hit exactly 1500, see
+    // batch_multi_model.sh runs against qwen35/qwen3vl on 2026-07-10).
+    let max_tokens = 4000;
 
     if (mode === "compliance") {
       prompt = loadPrompt("compliance", promptVersion, { DATA_BLOCK: dataBlock });

@@ -40,3 +40,7 @@ You can list one or more Ollama models together — just never mix `cosmos` with
 - `LIMIT` caps how many allocations to test — use `LIMIT=2` for a quick check, drop it for a full run.
 - Output: one CSV + one log file per model, timestamped, in `backend/scripts/`.
 - Env vars you might also need: `ALLOCATIONS_DIR` (defaults to local `allocations/`), `PROMPT_VERSION` (defaults `R1`).
+
+## Gotcha: reasoning models returning empty results
+
+Reasoning-style models (e.g. `qwen35`, and sometimes `qwen3vl`) can burn their whole `max_tokens` budget on hidden "thinking" tokens and never emit a final answer — the API response comes back with `"result": ""` and `completion_tokens` exactly equal to `max_tokens`. Fixed 2026-07-10 by raising `max_tokens` from 1500 to 4000 in `batchTest.controller.js`. If you still see this with a new model, that's the first thing to check (look at `completion_tokens` in the response, logged in the per-model `.log` file) — raise `max_tokens` further, or see if the model has a non-thinking variant/flag.
