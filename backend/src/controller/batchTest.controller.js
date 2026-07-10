@@ -132,6 +132,11 @@ ${imageContent ? "\nThe attached image is the real thermal baseline map of this 
       model: modelEntry.model,
       messages: [{ role: "user", content }],
       max_tokens,
+      // Reasoning-capable Ollama models (e.g. qwen3.5) can spend the whole
+      // max_tokens budget on hidden thinking and never emit final content —
+      // Ollama's OpenAI-compatible endpoint accepts this passthrough field to
+      // turn that off. Harmless no-op for non-reasoning/non-Ollama models.
+      ...(modelEntry.provider === "ollama" ? { think: false } : {}),
     };
 
     const upstream = await fetch(`${modelEntry.baseUrl}/v1/chat/completions`, {
