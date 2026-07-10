@@ -1,4 +1,8 @@
 const VLLM_URL = process.env.VLLM_URL || "http://127.0.0.1:8001";
+// Ollama server (multi-model comparison testing only — see config/models.js).
+// Note: Ollama and vLLM/Cosmos cannot run on the GPU at the same time on the
+// deployment box; this is a manual handoff, not something the code manages.
+const OLLAMA_URL = process.env.OLLAMA_URL || "http://127.0.0.1:11434";
 // ALLOC_BASE: only used for optional local thermal image overlay — falls back to empty string
 // so fs.existsSync checks fail gracefully when no local files are present.
 const ALLOC_BASE = process.env.ALLOC_BASE || "";
@@ -16,6 +20,7 @@ const PROMPT_VERSION = process.env.PROMPT_VERSION || "R1";
 
 module.exports = {
   VLLM_URL,
+  OLLAMA_URL,
   ALLOC_BASE,
   MODEL,
   PORT,

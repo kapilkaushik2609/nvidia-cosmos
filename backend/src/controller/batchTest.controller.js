@@ -1,5 +1,6 @@
 const fetch = require("node-fetch");
-const { VLLM_URL, MODEL, PROMPT_VERSION } = require("../config");
+const { PROMPT_VERSION } = require("../config");
+const MODEL_REGISTRY = require("../config/models");
 const { ensureVLLM, resetIdle } = require("../services/vllmProcess");
 const { loadPrompt } = require("../services/promptLoader");
 
@@ -11,12 +12,16 @@ const { loadPrompt } = require("../services/promptLoader");
 // folder with no network dependency on OASIS. Prompt text is intentionally
 // kept identical to analyze-simulation's so results are comparable — if you
 // change one, check whether the other needs the same change.
+//
+// modelId selects which entry in config/models.js answers this request
+// (defaults to "cosmos" so any existing caller that omits it keeps working
+// unchanged). Only the "vllm" provider (Cosmos) needs the on-demand
+// ensureVLLM()/resetIdle() lifecycle — Ollama-served models are already
+// running independently and are hit directly.
 
 // Simulation AI analysis (local/offline variant) — mode: 'general' | 'compliance' | 'physics'
 async function analyzeSimulationLocal(req, res) {
   try {
-    await ensureVLLM();
-
     const {
       mode = "general",
       scenario,
@@ -33,7 +38,19 @@ async function analyzeSimulationLocal(req, res) {
       facility,
       imageBase64,
       promptVersion = PROMPT_VERSION,
+      modelId = "cosmos",
     } = req.body;
+
+    const modelEntry = MODEL_REGISTRY[modelId];
+    if (!modelEntry) {
+      return res.status(400).json({
+        error: `Unknown modelId "${modelId}" — must be one of: ${Object.keys(MODEL_REGISTRY).join(", ")}`,
+      });
+    }
+
+    if (modelEntry.provider === "vllm") {
+      await ensureVLLM();
+    }
 
     const rackCount = facility?.rackCount || 52;
     const numRows = facility?.numRows || 3;
@@ -107,12 +124,12 @@ ${imageContent ? "\nThe attached image is the real thermal baseline map of this 
       : [{ type: "text", text: prompt }];
 
     const payload = {
-      model: MODEL,
+      model: modelEntry.model,
       messages: [{ role: "user", content }],
       max_tokens,
     };
 
-    const upstream = await fetch(`${VLLM_URL}/v1/chat/completions`, {
+    const upstream = await fetch(`${modelEntry.baseUrl}/v1/chat/completions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -122,13 +139,17 @@ ${imageContent ? "\nThe attached image is the real thermal baseline map of this 
     if (!upstream.ok)
       return res.status(upstream.status).json({ error: JSON.stringify(data) });
 
-    resetIdle();
+    if (modelEntry.provider === "vllm") {
+      resetIdle();
+    }
     res.json({
       result: data.choices?.[0]?.message?.content ?? "",
       usage: data.usage ?? {},
       used_image: !!imageContent,
       mode,
       promptVersion,
+      modelId,
+      modelLabel: modelEntry.label,
     });
   } catch (err) {
     console.error("[analyze-simulation-local]", err.message);
