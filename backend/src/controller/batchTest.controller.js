@@ -106,6 +106,11 @@ ${imageContent ? "\nThe attached image is the real thermal baseline map of this 
 
     if (mode === "compliance") {
       prompt = loadPrompt("compliance", promptVersion, { DATA_BLOCK: dataBlock });
+    } else if (mode === "probe") {
+      // Pure visual-perception description, deliberately kept separate from the
+      // compliance prompt/call — no facility numbers, no assessment, just the
+      // image (see backend/prompts/probe_R1.txt).
+      prompt = loadPrompt("probe", promptVersion, {});
     } else if (mode === "physics") {
       prompt = loadPrompt("physics", promptVersion, {
         IDLE_KW: idleKW.toFixed(1),

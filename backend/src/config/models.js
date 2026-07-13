@@ -40,4 +40,10 @@ module.exports = {
     baseUrl: OLLAMA_URL,
     model: "gemma4:e4b",
   },
+  qwen36: {
+    label: "Qwen3.6 35B",
+    provider: "ollama",
+    baseUrl: OLLAMA_URL,
+    model: "qwen3.6:35b",
+  },
 };

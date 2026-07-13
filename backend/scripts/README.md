@@ -9,6 +9,7 @@ Sync these changed files to the server, then restart the backend process there:
 backend/src/config/models.js
 backend/src/config/index.js
 backend/src/controller/batchTest.controller.js
+backend/prompts/probe_R1.txt
 ```
 
 ## 2. Run against Cosmos (vLLM)
@@ -30,16 +31,32 @@ curl -X POST http://103.204.95.220:7086/api/stop
 
 # start Ollama on the server (however you normally do it), then:
 cd backend/scripts
-LIMIT=2 MODELS="qwen3vl qwen35 gemma4" BACKEND_URL=http://103.204.95.220:7086 ./batch_multi_model.sh
+LIMIT=2 MODELS="qwen3vl qwen35 gemma4 qwen36" BACKEND_URL=http://103.204.95.220:7086 ./batch_multi_model.sh
+```
+
+`qwen36` (`qwen3.6:35b`, pulled on the server 2026-07-13) is the newest addition — same as the other Ollama entries, just add/remove it from `MODELS`. To run only the new model against everything already covered by the other three:
+
+```bash
+LIMIT=0 MODELS=qwen36 BACKEND_URL=http://103.204.95.220:7086 ./batch_multi_model.sh
 ```
 
 You can list one or more Ollama models together — just never mix `cosmos` with an Ollama model in the same `MODELS` value (the script blocks that automatically, GPU conflict).
 
 ## Notes
 
-- `LIMIT` caps how many allocations to test — use `LIMIT=2` for a quick check, drop it for a full run.
-- Output: one CSV + one log file per model, timestamped, in `backend/scripts/`.
+- `LIMIT` caps how many allocations to test — use `LIMIT=2` for a quick check, drop it for a full run (or `LIMIT=0`, the default).
+- Output: one CSV + one log file per model, in `backend/scripts/` — filenames are stable (`test_multi_model_<PROMPT_VERSION>_<modelId>.csv`, `batch_multi_model_<modelId>.log`), not timestamped, so an interrupted run can be resumed by just re-running the same command (already-processed allocation IDs are skipped). Set `RESET=1` to wipe a model's output and start that model over from scratch.
 - Env vars you might also need: `ALLOCATIONS_DIR` (defaults to local `allocations/`), `PROMPT_VERSION` (defaults `R1`).
+
+## Model probing (visual-perception column)
+
+Per Rahul's ask (call on 2026-07-10): a plain "describe the image" prompt, kept completely separate from the compliance assessment, so a model's raw visual-perception quality can be judged independently of its compliance reasoning.
+
+Implementation: for every allocation, the script now makes a **second** call to `/api/analyze-simulation-local` with `mode: "probe"` — same image as the compliance call, but a minimal dedicated prompt (`backend/prompts/probe_R1.txt`):
+
+> Look only at the attached image and describe what you see: what the layout is like, how many racks and aisles you see, and the temperature statistics you see. Do not give a compliance status, risk rating, or any assessment — this is a visual description only.
+
+The raw response lands in the `model_probe` column, which is the **last** column of the CSV (after `model_label`). No `PROMPT_VERSION=R2` needed — this now always runs alongside the compliance call, one extra request per allocation, so a full run takes roughly 2x as long per model as before.
 
 ## Gotcha: reasoning models returning empty results
 

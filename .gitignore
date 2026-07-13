@@ -3,5 +3,7 @@ client/node_modules
 backend/.env
 allocations
 
-
+*.log
+*.csv
+*.docx
 NewChamges.md

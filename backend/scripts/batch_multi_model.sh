@@ -34,11 +34,19 @@
 #   LIMIT=2 MODELS=qwen3vl ./batch_multi_model.sh            # dry run
 #   PROMPT_VERSION=R1 BACKEND_URL=http://103.204.95.220:7086 ./batch_multi_model.sh
 #
-# One CSV + one log file PER MODEL, named with model + prompt version +
-# timestamp so repeated runs never clobber each other:
-#   test_multi_model_<promptVersion>_<modelId>_<YYYYmmdd-HHMMSS>.csv
-#   batch_multi_model_<modelId>_<YYYYmmdd-HHMMSS>.log
+# One CSV + one log file PER MODEL, named with model + prompt version (no
+# timestamp — stable per model so a resumed run finds the same file):
+#   test_multi_model_<promptVersion>_<modelId>.csv
+#   batch_multi_model_<modelId>.log
 # CSV columns: same as batch_compliance_folder.sh, plus model + model_label.
+#
+# RESUMABLE: if the script is interrupted (Ctrl+C, backend crash, etc.) partway
+# through a model, just re-run the exact same command — for each model, any
+# allocation_id already present in that model's CSV is skipped, and the run
+# continues with whatever's left (LIMIT counts only newly-processed
+# allocations, not skipped ones). To force a clean re-run of a model instead
+# of resuming, delete its CSV first, or set RESET=1 to have the script delete
+# it for you before starting.
 #
 # NOTE: deliberately does NOT use `set -e` — same reasoning as the other two
 # batch scripts (one allocation's failure must not kill the whole run).
@@ -54,6 +62,7 @@ TEMP_FIELD="${TEMP_FIELD:-mean_c}"
 IMAGE_FILE="${IMAGE_FILE:-thermal_map.png}"
 MAX_IMAGE_WIDTH="${MAX_IMAGE_WIDTH:-1600}"
 PROMPT_VERSION="${PROMPT_VERSION:-R1}"
+RESET="${RESET:-0}"
 read -r -a DATACENTERS <<< "${DATACENTERS:-CHI1-CHI3 DFW3-DFW5}"
 read -r -a MODELS_ARR <<< "${MODELS:-cosmos}"
 
@@ -246,14 +255,14 @@ write_row() {
   local dc="$1" alloc_id="$2" customer="$3" result_summary="$4"
   local av="$5" ac="$6" amt="$7" is_correct="$8" comments="$9"
   shift 9
-  local model_id="$1" model_label="$2"
-  shift 2
+  local model_id="$1" model_label="$2" model_probe="$3"
+  shift 3
   local row="$dc,$alloc_id,\"$(csv_escape "$customer")\",\"$(csv_escape "$result_summary")\""
   local s
   for s in "$@"; do
     row+=",\"$(csv_escape "$s")\""
   done
-  row+=",\"$(csv_escape "$av")\",\"$(csv_escape "$ac")\",\"$(csv_escape "$amt")\",\"$(csv_escape "$is_correct")\",\"$(csv_escape "$comments")\",\"$(csv_escape "$model_id")\",\"$(csv_escape "$model_label")\""
+  row+=",\"$(csv_escape "$av")\",\"$(csv_escape "$ac")\",\"$(csv_escape "$amt")\",\"$(csv_escape "$is_correct")\",\"$(csv_escape "$comments")\",\"$(csv_escape "$model_id")\",\"$(csv_escape "$model_label")\",\"$(csv_escape "$model_probe")\""
   echo "$row" >> "$CURRENT_OUTFILE"
 }
 
@@ -270,12 +279,30 @@ for model_id in "${MODELS_ARR[@]}"; do
   model_label=$(echo "$REGISTRY_JSON" | jq -r --arg id "$model_id" '.[$id].label')
   provider=$(echo "$REGISTRY_JSON" | jq -r --arg id "$model_id" '.[$id].provider')
 
-  TS=$(date +%Y%m%d-%H%M%S)
-  CURRENT_OUTFILE="test_multi_model_${PROMPT_VERSION}_${model_id}_${TS}.csv"
-  CURRENT_LOGFILE="batch_multi_model_${model_id}_${TS}.log"
-  : > "$CURRENT_LOGFILE"
+  CURRENT_OUTFILE="test_multi_model_${PROMPT_VERSION}_${model_id}.csv"
+  CURRENT_LOGFILE="batch_multi_model_${model_id}.log"
+
+  if [ "$RESET" = "1" ]; then
+    rm -f "$CURRENT_OUTFILE" "$CURRENT_LOGFILE"
+  fi
+
+  # Resume support: any allocation_id already written to this model's CSV from
+  # a prior (possibly interrupted) run is skipped below instead of re-sent.
+  # dc/alloc_id are always unquoted, comma-free fields (see write_row), so a
+  # plain cut on column 2 is safe even though later columns may contain commas.
+  declare -A done_ids=()
+  resumed=0
+  if [ -f "$CURRENT_OUTFILE" ]; then
+    resumed=1
+    while IFS= read -r prev_id; do
+      [ -n "$prev_id" ] && done_ids["$prev_id"]=1
+    done < <(tail -n +2 "$CURRENT_OUTFILE" | cut -d',' -f2)
+  fi
 
   log "=== Model: $model_id ($model_label, provider=$provider) — outfile=$CURRENT_OUTFILE ==="
+  if [ "$resumed" -eq 1 ]; then
+    log "Resuming — ${#done_ids[@]} allocation(s) already in $CURRENT_OUTFILE will be skipped."
+  fi
 
   if [ "$provider" = "vllm" ]; then
     log "Warming up vLLM…"
@@ -296,7 +323,9 @@ for model_id in "${MODELS_ARR[@]}"; do
     log "Ollama-served model — no warm-up step, requests go straight through."
   fi
 
-  echo "datacenter,allocation_id,customer_name,result_summary,compliance_status,equipment_class_risk,violation_report,reportable_incidents,corrective_actions,asme_vv_gap,compliance_risk_rating,actual_violations,actual_critical,actual_max_temp,is_correct,comments,model,model_label" > "$CURRENT_OUTFILE"
+  if [ "$resumed" -eq 0 ]; then
+    echo "datacenter,allocation_id,customer_name,result_summary,compliance_status,equipment_class_risk,violation_report,reportable_incidents,corrective_actions,asme_vv_gap,compliance_risk_rating,actual_violations,actual_critical,actual_max_temp,is_correct,comments,model,model_label,model_probe" > "$CURRENT_OUTFILE"
+  fi
 
   for dc in "${DATACENTERS[@]}"; do
     log "== Datacenter: $dc =="
@@ -321,6 +350,10 @@ for model_id in "${MODELS_ARR[@]}"; do
     count=0
     while IFS= read -r alloc_id; do
       [ -z "$alloc_id" ] && continue
+      if [ -n "${done_ids[$alloc_id]:-}" ]; then
+        log "  (already processed, skipping) $alloc_id"
+        continue
+      fi
       if [ "$LIMIT" -gt 0 ] && [ "$count" -ge "$LIMIT" ]; then
         log "  (LIMIT=$LIMIT reached for $dc, stopping this datacenter)"
         break
@@ -334,16 +367,19 @@ for model_id in "${MODELS_ARR[@]}"; do
       temp_file="$alloc_dir/temperature/temperature_summary.json"
       image_file="$alloc_dir/thermal/$IMAGE_FILE"
 
+      # write_row args after model_label: model_probe, then the 7 compliance
+      # section values (compliance_status .. compliance_risk_rating) — see
+      # write_row()'s definition above. All blank on these early-exit error paths.
       if [ ! -f "$report_file" ] || [ ! -f "$temp_file" ]; then
         log "     ERROR: missing report/config.json or temperature_summary.json — skipping"
-        write_row "$dc" "$alloc_id" "" "ERROR: missing local data files" "" "" "" "" "" "$model_id" "$model_label" "" "" "" "" "" "" ""
+        write_row "$dc" "$alloc_id" "" "ERROR: missing local data files" "" "" "" "" "" "$model_id" "$model_label" "" "" "" "" "" "" "" ""
         continue
       fi
 
       cfg=$(jq '.configuration // .' "$report_file" 2>/dev/null)
       if [ -z "$cfg" ] || [ "$cfg" = "null" ]; then
         log "     ERROR: report/config.json is invalid JSON — skipping"
-        write_row "$dc" "$alloc_id" "" "ERROR: invalid config JSON" "" "" "" "" "" "$model_id" "$model_label" "" "" "" "" "" "" ""
+        write_row "$dc" "$alloc_id" "" "ERROR: invalid config JSON" "" "" "" "" "" "$model_id" "$model_label" "" "" "" "" "" "" "" ""
         continue
       fi
       customer_name=$(echo "$cfg" | jq -r '.customer_name // "unknown"')
@@ -395,7 +431,7 @@ for model_id in "${MODELS_ARR[@]}"; do
 
       if [ -z "$body" ]; then
         log "     ERROR: failed to build request body (see $CURRENT_LOGFILE for jq errors) — skipping"
-        write_row "$dc" "$alloc_id" "$customer_name" "ERROR: request body build failed" "" "" "" "" "" "$model_id" "$model_label" "" "" "" "" "" "" ""
+        write_row "$dc" "$alloc_id" "$customer_name" "ERROR: request body build failed" "" "" "" "" "" "$model_id" "$model_label" "" "" "" "" "" "" "" ""
         continue
       fi
 
@@ -412,6 +448,18 @@ for model_id in "${MODELS_ARR[@]}"; do
       log_data "$alloc_id — built request body for /api/analyze-simulation-local (image omitted from log)" \
         "$(echo "$body" | jq 'del(.imageBase64)')"
 
+      # Model probing: a SEPARATE call with its own minimal prompt (backend/prompts/probe_R1.txt)
+      # — pure visual description of the same image, no facility numbers or compliance framing.
+      # Reuses $body (same image already attached) with mode overridden to "probe".
+      model_probe_text=""
+      probe_body=$(echo "$body" | jq '.mode = "probe"' 2>/dev/null)
+      if [ -n "$probe_body" ]; then
+        probe_response=$(curl -s --max-time 120 -X POST "$BACKEND_URL/api/analyze-simulation-local" \
+          -H "Content-Type: application/json" -d "$probe_body")
+        log_data "$alloc_id — POST /api/analyze-simulation-local (mode=probe) — response" "$probe_response"
+        model_probe_text=$(echo "$probe_response" | jq -r '.result // ""' 2>/dev/null)
+      fi
+
       actual_violations=$(echo "$body" | jq -r '.violations // ""' 2>/dev/null)
       actual_critical=$(echo "$body" | jq -r '.critical // ""' 2>/dev/null)
       actual_max_temp=$(echo "$body" | jq -r '.maxTemp // ""' 2>/dev/null)
@@ -427,7 +475,7 @@ for model_id in "${MODELS_ARR[@]}"; do
         log "     ERROR: analyze-simulation-local returned invalid/empty JSON — skipping"
         write_row "$dc" "$alloc_id" "$customer_name" "ERROR: invalid API response" \
           "$actual_violations" "$actual_critical" "$actual_max_temp" "" "" "$model_id" "$model_label" \
-          "" "" "" "" "" "" ""
+          "$model_probe_text" "" "" "" "" "" "" ""
         sleep "$SLEEP_BETWEEN"
         continue
       fi
@@ -454,7 +502,7 @@ for model_id in "${MODELS_ARR[@]}"; do
         write_row "$dc" "$alloc_id" "$customer_name" "$err_msg" \
           "$actual_violations" "$actual_critical" "$actual_max_temp" "" "" \
           "$model_id" "$model_label" \
-          "$err_msg" "" "" "" "" "" ""
+          "$model_probe_text" "$err_msg" "" "" "" "" "" ""
       else
         result_summary=$(printf '%s' "$compliance_status" | grep -oiE 'NON-COMPLIANT|CONDITIONAL|COMPLIANT' | head -1)
         [ -z "$result_summary" ] && result_summary="UNKNOWN"
@@ -468,7 +516,7 @@ for model_id in "${MODELS_ARR[@]}"; do
 
         write_row "$dc" "$alloc_id" "$customer_name" "$result_summary" \
           "$actual_violations" "$actual_critical" "$actual_max_temp" \
-          "$AUTO_IS_CORRECT" "$AUTO_COMMENT" "$model_id" "$model_label" "${section_values[@]}"
+          "$AUTO_IS_CORRECT" "$AUTO_COMMENT" "$model_id" "$model_label" "$model_probe_text" "${section_values[@]}"
       fi
 
       sleep "$SLEEP_BETWEEN"
