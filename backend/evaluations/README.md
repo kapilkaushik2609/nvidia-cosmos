@@ -17,7 +17,7 @@ backend/prompts/probe_R1.txt
 Make sure Ollama is stopped on the server first (frees the GPU), then:
 
 ```bash
-cd backend/scripts
+cd backend/evaluations
 LIMIT=2 MODELS=cosmos BACKEND_URL=http://103.204.95.220:7086 ./batch_multi_model.sh
 ```
 
@@ -30,7 +30,7 @@ vLLM starts itself automatically — no manual start step needed.
 curl -X POST http://103.204.95.220:7086/api/stop
 
 # start Ollama on the server (however you normally do it), then:
-cd backend/scripts
+cd backend/evaluations
 LIMIT=2 MODELS="qwen3vl qwen35 gemma4 qwen36" BACKEND_URL=http://103.204.95.220:7086 ./batch_multi_model.sh
 ```
 
@@ -45,8 +45,9 @@ You can list one or more Ollama models together — just never mix `cosmos` with
 ## Notes
 
 - `LIMIT` caps how many allocations to test — use `LIMIT=2` for a quick check, drop it for a full run (or `LIMIT=0`, the default).
-- Output: one CSV + one log file per model, in `backend/scripts/` — filenames are stable (`test_multi_model_<PROMPT_VERSION>_<modelId>.csv`, `batch_multi_model_<modelId>.log`), not timestamped, so an interrupted run can be resumed by just re-running the same command (already-processed allocation IDs are skipped). Set `RESET=1` to wipe a model's output and start that model over from scratch.
-- Env vars you might also need: `ALLOCATIONS_DIR` (defaults to local `allocations/`), `PROMPT_VERSION` (defaults `R1`).
+- Output: one CSV per model in `backend/evaluations/results/`, named `<date>_model_<PROMPT_VERSION>_<modelId>.csv` (e.g. `2026-07-13_model_R1_qwen36.csv`) — this is the naming convention to follow from now on for anything saved there. One log file per model stays next to the script (`batch_multi_model_<modelId>.log`).
+  - `RUN_DATE` defaults to today and is baked into the CSV filename — re-running the *same command on the same day* resumes (already-processed allocation IDs are skipped). Resuming a prior day's run requires passing that day's `RUN_DATE` explicitly, since the filename changes daily. Set `RESET=1` to wipe a model's output file for the day and start over from scratch.
+- Env vars you might also need: `ALLOCATIONS_DIR` (defaults to local `allocations/`), `PROMPT_VERSION` (defaults `R1`), `RESULTS_DIR` (defaults to `backend/evaluations/results/`), `RUN_DATE` (defaults to today, `YYYY-MM-DD`).
 
 ## Model probing (visual-perception column)
 
@@ -55,6 +56,17 @@ Per Rahul's ask (call on 2026-07-10): a plain "describe the image" prompt, kept 
 Implementation: for every allocation, the script now makes a **second** call to `/api/analyze-simulation-local` with `mode: "probe"` — same image as the compliance call, but a minimal dedicated prompt (`backend/prompts/probe_R1.txt`):
 
 > Look only at the attached image and describe what you see: what the layout is like, how many racks and aisles you see, and the temperature statistics you see. Do not give a compliance status, risk rating, or any assessment — this is a visual description only.
+
+## Comparing models (per Rahul's ask, call on 2026-07-13)
+
+Two scripts, both reading every CSV in `results/`, both writing a per-row detail CSV + a per-model summary CSV back into `results/`. Run one, both, or neither — they don't depend on each other.
+
+- **`score_perception_factual.py`** — deterministic, no LLM calls. Regex-extracts the concrete facts a model's `model_probe` text claims (rack count, row/aisle count, peak temperature) and checks them against the real facility config (`allocations/<id>/config.json`) and that row's own `actual_max_temp`. Free, instant, fully explainable — but only catches facts reducible to a number.
+- **`score_perception_llm_judge.py`** — asks a judge model (default `qwen3.6:35b` via Ollama) to grade the qualitative parts a regex can't: layout description quality, completeness, and hallucination (stating specifics that contradict the real facility data). Costs one extra inference call per row and its scores are the judge's opinion, not ground truth. Talks directly to Ollama/vLLM's own API — no backend changes needed — but that means it needs network access to the judge model's port (tunnel it if not exposed externally).
+
+Recommendation: run the factual scorer first (it's free) to get an objective floor, then run the LLM judge for the harder-to-quantify parts (layout/completeness/hallucination) if you want a richer picture for the client.
+
+For the compliance side (the 7-category columns), the existing `is_correct`/`comments` columns already give ground-truth-checked accuracy per row (via `auto_check` in `batch_multi_model.sh`) — aggregate those per model for the compliance comparison Rahul asked for; no new script needed there yet.
 
 The raw response lands in the `model_probe` column, which is the **last** column of the CSV (after `model_label`). No `PROMPT_VERSION=R2` needed — this now always runs alongside the compliance call, one extra request per allocation, so a full run takes roughly 2x as long per model as before.
 

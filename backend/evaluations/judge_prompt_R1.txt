@@ -1,0 +1,15 @@
+You are grading how well a vision-language model described a datacenter thermal map image, using only its written description below (you have not seen the image yourself).
+
+GROUND TRUTH (the real facility this image shows):
+{ground_truth}
+
+MODEL'S DESCRIPTION OF THE IMAGE:
+"""{candidate_text}"""
+
+Grade the description against the ground truth. Respond with ONLY a JSON object, no other text, in exactly this shape:
+{{"factual_accuracy": <1-5>, "completeness": <1-5>, "hallucination": <true|false>, "justification": "<one sentence>"}}
+
+Scoring guide:
+- factual_accuracy: 5 = every stated fact matches ground truth, 1 = mostly wrong/contradicts ground truth.
+- completeness: 5 = covers layout, rack/aisle count, and temperature observations, 1 = covers almost none of these.
+- hallucination: true if the description states specific facts (numbers, colors, labels) that are NOT supported by and contradict the ground truth.

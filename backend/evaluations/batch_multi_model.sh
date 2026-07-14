@@ -34,19 +34,27 @@
 #   LIMIT=2 MODELS=qwen3vl ./batch_multi_model.sh            # dry run
 #   PROMPT_VERSION=R1 BACKEND_URL=http://103.204.95.220:7086 ./batch_multi_model.sh
 #
-# One CSV + one log file PER MODEL, named with model + prompt version (no
-# timestamp — stable per model so a resumed run finds the same file):
-#   test_multi_model_<promptVersion>_<modelId>.csv
+# One CSV per model, written to backend/evaluations/results/, following the
+# team's naming convention (date_model_promptVersion_modelId.csv):
+#   results/<RUN_DATE>_model_<promptVersion>_<modelId>.csv
+# e.g. results/2026-07-13_model_R1_qwen36.csv
+# One log file per model, next to the script (unchanged):
 #   batch_multi_model_<modelId>.log
 # CSV columns: same as batch_compliance_folder.sh, plus model + model_label.
 #
+# RUN_DATE defaults to today (YYYY-MM-DD) and can be overridden — set it to an
+# earlier date to resume/append to that day's file instead of starting a new
+# one for today.
+#
 # RESUMABLE: if the script is interrupted (Ctrl+C, backend crash, etc.) partway
-# through a model, just re-run the exact same command — for each model, any
-# allocation_id already present in that model's CSV is skipped, and the run
-# continues with whatever's left (LIMIT counts only newly-processed
-# allocations, not skipped ones). To force a clean re-run of a model instead
-# of resuming, delete its CSV first, or set RESET=1 to have the script delete
-# it for you before starting.
+# through a model, just re-run the exact same command on the SAME DAY — for
+# each model, any allocation_id already present in that day's CSV is skipped,
+# and the run continues with whatever's left (LIMIT counts only
+# newly-processed allocations, not skipped ones). Resuming on a later day
+# requires passing the original RUN_DATE explicitly, since the filename is
+# date-stamped. To force a clean re-run of a model instead of resuming,
+# delete its CSV first, or set RESET=1 to have the script delete it for you
+# before starting.
 #
 # NOTE: deliberately does NOT use `set -e` — same reasoning as the other two
 # batch scripts (one allocation's failure must not kill the whole run).
@@ -63,6 +71,9 @@ IMAGE_FILE="${IMAGE_FILE:-thermal_map.png}"
 MAX_IMAGE_WIDTH="${MAX_IMAGE_WIDTH:-1600}"
 PROMPT_VERSION="${PROMPT_VERSION:-R1}"
 RESET="${RESET:-0}"
+RUN_DATE="${RUN_DATE:-$(date +%Y-%m-%d)}"
+RESULTS_DIR="${RESULTS_DIR:-$SCRIPT_DIR/results}"
+mkdir -p "$RESULTS_DIR"
 read -r -a DATACENTERS <<< "${DATACENTERS:-CHI1-CHI3 DFW3-DFW5}"
 read -r -a MODELS_ARR <<< "${MODELS:-cosmos}"
 
@@ -279,8 +290,8 @@ for model_id in "${MODELS_ARR[@]}"; do
   model_label=$(echo "$REGISTRY_JSON" | jq -r --arg id "$model_id" '.[$id].label')
   provider=$(echo "$REGISTRY_JSON" | jq -r --arg id "$model_id" '.[$id].provider')
 
-  CURRENT_OUTFILE="test_multi_model_${PROMPT_VERSION}_${model_id}.csv"
-  CURRENT_LOGFILE="batch_multi_model_${model_id}.log"
+  CURRENT_OUTFILE="$RESULTS_DIR/${RUN_DATE}_model_${PROMPT_VERSION}_${model_id}.csv"
+  CURRENT_LOGFILE="$SCRIPT_DIR/batch_multi_model_${model_id}.log"
 
   if [ "$RESET" = "1" ]; then
     rm -f "$CURRENT_OUTFILE" "$CURRENT_LOGFILE"
@@ -454,8 +465,11 @@ for model_id in "${MODELS_ARR[@]}"; do
       model_probe_text=""
       probe_body=$(echo "$body" | jq '.mode = "probe"' 2>/dev/null)
       if [ -n "$probe_body" ]; then
+        probe_body_tmp=$(mktemp)
+        printf '%s' "$probe_body" > "$probe_body_tmp"
         probe_response=$(curl -s --max-time 120 -X POST "$BACKEND_URL/api/analyze-simulation-local" \
-          -H "Content-Type: application/json" -d "$probe_body")
+          -H "Content-Type: application/json" -d @"$probe_body_tmp")
+        rm -f "$probe_body_tmp"
         log_data "$alloc_id — POST /api/analyze-simulation-local (mode=probe) — response" "$probe_response"
         model_probe_text=$(echo "$probe_response" | jq -r '.result // ""' 2>/dev/null)
       fi
