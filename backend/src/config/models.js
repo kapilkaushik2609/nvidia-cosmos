@@ -1,7 +1,7 @@
 const { VLLM_URL, MODEL, OLLAMA_URL } = require("./index");
 
 // Registry of models the testing-only batch pipeline (batchTest.controller.js +
-// backend/scripts/batch_multi_model.sh) can target — the real product API
+// backend/evaluations/batch_multi_model.sh) can target — the real product API
 // (simulation.controller.js) always uses VLLM_URL/MODEL directly and never
 // consults this file.
 //
@@ -45,5 +45,11 @@ module.exports = {
     provider: "ollama",
     baseUrl: OLLAMA_URL,
     model: "qwen3.6:35b",
+  },
+  qwen36_27b: {
+    label: "Qwen3.6 27B",
+    provider: "ollama",
+    baseUrl: OLLAMA_URL,
+    model: "qwen3.6:27b",
   },
 };

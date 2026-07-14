@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
-# Multi-model counterpart to batch_compliance_folder.sh — runs the SAME
-# compliance prompt (from backend/prompts/, versioned) against one or more
-# models from backend/src/config/models.js (Cosmos via vLLM, or Gemma4/
-# Qwen3-VL/Qwen3.5 via Ollama), for comparison purposes.
+# Folder-driven, multi-model batch runner — runs the compliance prompt (from
+# backend/prompts/, versioned) against one or more models from
+# backend/src/config/models.js (Cosmos via vLLM, or Gemma4/Qwen3-VL/
+# Qwen3.5/Qwen3.6 (35B and 27B) via Ollama), for comparison purposes. The sole batch
+# testing script in this repo (its earlier single-model siblings,
+# batch_compliance.sh and batch_compliance_folder.sh, have been retired).
 #
-# batch_compliance.sh and batch_compliance_folder.sh are NOT modified by this
-# work and remain exactly as they were — this is a separate, new script.
-#
-# Sources allocation data from the local allocations/ folder, same as
-# batch_compliance_folder.sh (report.json/config.json +
-# temperature/temperature_summary.json + thermal/thermal_map.png — see that
-# script's header comment for the full data-shape notes). Posts to the
-# testing-only /api/analyze-simulation-local endpoint, never the real
-# /api/analyze-simulation.
+# Sources everything from the local allocations/ folder — never the live
+# OASIS API. Each allocations/<allocation_id>/ folder is expected to contain:
+#   report.json (or config.json)         — facility configuration
+#   temperature/temperature_summary.json — per-rack row/position/stats
+#                                           (min/max/mean/p95 over the whole
+#                                           recorded period — TEMP_FIELD picks
+#                                           which stat is sent as "current")
+#   thermal/thermal_map.png              — the 4-panel combined thermal image
+# allocations/facility_allocation_table.json (one level up) maps
+# allocation_id -> facility_id, used to filter by requested datacenter.
+# Posts to the testing-only /api/analyze-simulation-local endpoint, never the
+# real /api/analyze-simulation.
 #
 # ── GPU constraint (IMPORTANT) ──────────────────────────────────────────────
 # Ollama and Cosmos (vLLM) cannot run on the GPU at the same time on the
@@ -23,16 +28,16 @@
 # in between:
 #   MODELS=cosmos ./batch_multi_model.sh                    # vLLM must be up (default anyway)
 #   ... stop vLLM, start Ollama ...
-#   MODELS="qwen3vl qwen35 gemma4" ./batch_multi_model.sh    # Ollama must be up
+#   MODELS="qwen3vl qwen35 gemma4 qwen36 qwen36_27b" ./batch_multi_model.sh    # Ollama must be up
 #
 # Requires: curl, jq, base64, node (to read the model registry), python3/PIL
-# (for image resizing — see batch_compliance_folder.sh)
+# (for image resizing)
 #
 # Usage:
 #   MODELS=cosmos ./batch_multi_model.sh
 #   MODELS="qwen3vl gemma4" ./batch_multi_model.sh
 #   LIMIT=2 MODELS=qwen3vl ./batch_multi_model.sh            # dry run
-#   PROMPT_VERSION=R1 BACKEND_URL=http://103.204.95.220:7086 ./batch_multi_model.sh
+#   PROMPT_VERSION=R1 BACKEND_URL=http://localhost:7086 ./batch_multi_model.sh
 #
 # One CSV per model, written to backend/evaluations/results/, following the
 # team's naming convention (date_model_promptVersion_modelId.csv):
@@ -40,7 +45,13 @@
 # e.g. results/2026-07-13_model_R1_qwen36.csv
 # One log file per model, next to the script (unchanged):
 #   batch_multi_model_<modelId>.log
-# CSV columns: same as batch_compliance_folder.sh, plus model + model_label.
+# CSV columns: datacenter, allocation_id, customer_name, result_summary,
+# compliance_status, equipment_class_risk, violation_report,
+# reportable_incidents, corrective_actions, asme_vv_gap,
+# compliance_risk_rating, actual_violations, actual_critical,
+# actual_max_temp, is_correct, comments, model, model_label, model_probe
+# (model_probe is a separate mode=probe call's pure visual description of
+# the same image — see the "Model probing" comment further down).
 #
 # RUN_DATE defaults to today (YYYY-MM-DD) and can be overridden — set it to an
 # earlier date to resume/append to that day's file instead of starting a new
@@ -56,8 +67,8 @@
 # delete its CSV first, or set RESET=1 to have the script delete it for you
 # before starting.
 #
-# NOTE: deliberately does NOT use `set -e` — same reasoning as the other two
-# batch scripts (one allocation's failure must not kill the whole run).
+# NOTE: deliberately does NOT use `set -e` — one allocation's failure must not
+# kill the whole run.
 
 set -u
 
